@@ -1,8 +1,7 @@
 //definir las estructuras
-/*
 
-*/
 int main(int argc, int args[]){
+    int x;
     //argc el tamaño del vec
     //args nombre del archivo ejecutable .vmx [0]
     // char RAM[16KiB]
