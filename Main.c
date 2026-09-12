@@ -2,8 +2,11 @@
 
 int main(int argc, int args[]){
     //argc el tamaño del vec
-    //args nombre del archivo ejecutable .vmx [0]
+    //args nombre del archivo ejecutable .vmx [0], flag [-d]
     /*
+    validar entrada, argc>0 <2, args[0] != NULL 
+    si se guarda en archivo, solo se valida una vez el -d y lo imprime, si es con print se pregunta varias
+    veces.
     paso 1: crear la máquina
         crear las estructuras de hardware
         crear el registro máquina
@@ -16,11 +19,15 @@ int main(int argc, int args[]){
         inicializar la tabla de segmentos ([0]CS 0, tamaño, [1]DS tamaño, 16KiB-tamaño)
         completamos el resto de la tabla con -1(0xFFFF)
         inicializamos los registros [reg DS 1 y reg CS 0 y reg IP [CS]]
-            mientras IP!=-1
-            validar los datos de la tabla de segmentos(que la dirección logica sea mayor o igual a la dirección base y que con la suma de los bytes a leer no se pase del límite establecido, tamaño)
+            mientras IP!=-1 || no se puedan extraer los operandos
+            validar los datos de la tabla de segmentos(que la dirección logica sea mayor o igual a la dirección 
+            base y que con la suma de los bytes a leer no se pase del límite establecido, tamaño)
             Almacena en OPC la operación, en OP1 A, en OP2 B(3 bits mas sig, el tipo de op, en los demas el valor)
             nos desplazamos en el IP (IP+tamaño(OP+A+B)) 
             A partir de la operación hacer los procesos correspondientes
+            En cada operación entra por parametro el archivo de salida, ya previamente con [] y la lecutura de la memor
+            ahi, si se ejecuta correctamente, guardar el mnemonico y los operando
+            PREGUNTAR, si por salidas seria print o el archivo.txt
         cuando corta la ejecución a IP=-1 (STOP)
         cargar en la máquina la versión
         cargar las instrucciones en la memoria RAM
