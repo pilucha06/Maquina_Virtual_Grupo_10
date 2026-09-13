@@ -1,49 +1,14 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
-
-#define TAM_RAM 16384
-#define CANT_REGS 32
-#define CANT_SEGS 8
-#define ENTRADA_LIBRE 0xFFFFFFFF
-#define ID_MV  "VMX26"
-#define TAM_ID 5
-#define VER_MV 1
-
-//SEGMENTOS DEFINIDOS DE LA TABLA PARA CS Y DS
-#define SEG_COD 0
-#define SEG_DAT 1
-
-//CONST DE ERRORES Y SUS TIPOS EN INICIALIZACION
-#define OK 0
-#define ERR_ARCH 1
-#define ERR_ID 2
-#define ERR_VER 3
-#define ERR_TAM_COD 4
-
-typedef enum {
-    REG_IP = 0, REG_OPC, REG_OP1, REG_OP2,
-    REG_LAR, REG_MAR, REG_MBR,
-    REG_EAX = 10, REG_EBX, REG_ECX, REG_EDX, REG_EEX, REG_EFX,
-    REG_AC = 16, REG_CC,
-    REG_CS = 26, REG_DS
-} CodigoRegistro;
-
-typedef struct {
-    unsigned char  *RAM;          // 16384 celdas de 1 byte
-    int  *registros;        // vector de 32 registros de 4 bytes
-    unsigned int *tablaSegmentos;   // 8 entradas, 2 bytes base + 2 bytes tamaño
-
-    char     id[TAM_ID + 1];  // "VMX26" + '\0'
-    unsigned char  version;
-} TMV;
+#include "MV.h"
 
 int reservoEspacioMV(TMV *MV){
     MV->RAM = calloc(TAM_RAM, sizeof(unsigned char)); //reserva 16384 bytes en el heap todos en 0 y devuelve puntero a 1er posicion
     if(MV->RAM == NULL)
         return 0;
 
-    MV->registros = calloc(CANT_REGS, sizeof(int));
+    MV->registros = calloc(CANT_REGS, sizeof(int)); 
     if (MV->registros == NULL){
         free(MV->RAM);
         return 0;
