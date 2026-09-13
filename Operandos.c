@@ -46,16 +46,24 @@ int getInm(tRegMV *mv, int op){
 }
 
 int getMem(tRegMV *mv, int op){
-    int regNum, segmento, direLogica;
+    int regNum, segmento, direLogica, direFisica;
     regNum = op & 0x1F // dire->5 ult bits
     offset = (op >> 8) &  0xFFFF; // 8=dire+3 reservados
     segmento= mv->registros[regNum];
     //calculo direccion logica = 2 bytes +s segmento + 2 bytes -s offset
     direLogica = (segmento << 16) | (offset & 0xFFFF);
-        return leerMemoria(mv, dirLogica); // haganla *n* ... (creo q en ejecucion.c)
-}            //(funcion que hace la traduccion de la direccion 
-            //logica a direccion fisica y lee los 4 bytes de la RAM)
+        direFisica = sacoDireFisica(mv, direLogica);
+        return leerMemoria(mv, direFisica); // las hace martu *n* ... (en ejecucion.c)
+}           
 
+
+void setReg(tRegMv *mv, int op, int valor){
+    int regNum;
+    regNum = op & 0x1F;
+    mv->registros[regNum] = valor; 
+
+
+}            
 
 typedef int (*getters)(tRegMV *, int);
 typedef void (*setters)(tRegMV *, int, int);
