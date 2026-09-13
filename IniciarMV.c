@@ -1,7 +1,7 @@
+#include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <string.h>
-#include "MV.h"
+#include "IniciarMV.h"
 
 int reservoEspacioMV(TMV *MV){
     MV->RAM = calloc(TAM_RAM, sizeof(unsigned char)); //reserva 16384 bytes en el heap todos en 0 y devuelve puntero a 1er posicion
