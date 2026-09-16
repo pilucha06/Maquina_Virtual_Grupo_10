@@ -1,6 +1,65 @@
-//definir las estructuras
+#include <stdlib.h>
+#include <stdio.h>
+#include <string.h>
+#include "IniciarMV.h" 
 
-int main(int argc, int args[]){
+void mostrarResult(int result){
+    switch (result) {
+        case OK:
+            printf("Inicializacion de MV exitosa.\n");
+            break;
+        case ERR_ARCH:
+            printf("ERROR: Archivo corrupto.\n");
+            break;
+        case ERR_ID:
+            printf("ERROR: Id especificado en archivo no coincide con Id de MV\n");
+            break;
+        case ERR_VER:
+            printf("ERROR: Version especificada en archivo no coincide con version de MV\n");
+            break;
+        case ERR_TAM_COD:
+            printf("ERROR: Codigo demasiado grande para ser ejecutado.\n");
+            break;
+        default:
+            printf("ERROR: Sucedio algo inesperado durante ejecucion.\n");
+            break;
+    }
+}
+
+int main(int argc, char *argv[]){ //cada elem de argv es un string!
+    TMV MV;
+    int i, mostrarDis = 0, result;
+
+    if (argc >= 2)
+        if (reservoEspacioMV(&MV)){
+            result = inicializoMV(&MV, argv[1]);
+            mostrarResult(result);
+            if (result == OK){ //si todo salio bien, MV ya esta lista para procesar
+                /*for (int i = 2; i < argc; i++)
+                    if (strcmp(argv[i], "-d") == 0)
+                        mostrarDis = 1;
+                if (mostrarDis)
+                    //desensamblar(&MV); 
+                //ejecucion de MV...
+                */
+                liberarMV(&MV);
+                return 0;
+            }
+            else{
+                liberarMV(&MV);
+                return 1;
+            }
+        }
+        else{
+            printf("ERROR: No se pudo reservar espacio para componentes de la MV");
+            return 1;
+        }
+    else{
+        printf("ERROR: Parametros incorrectos o insuficientes");
+        return 1;
+    }
+}
+
     //argc el tamaño del vec
     //args nombre del archivo ejecutable .vmx [0], flag [-d]
     /*
@@ -33,4 +92,3 @@ int main(int argc, int args[]){
         cargar las instrucciones en la memoria RAM
         CS apunta al inicio de las instrucciones, DS aputa a el final de las instrucciones(pos CS + tamaño)
     */
-}
