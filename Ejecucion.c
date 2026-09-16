@@ -192,7 +192,12 @@ void ejecutar(TMV *MV, int modo_disassembler) {
             default:
                 MV->registros[REG_OP1] = MV->registros[REG_OP2] = 0;
         }
-
+        // Paso 4.5: valido que el opcode exista
+        if (nombres_mnemonicos[MV->registros[REG_OPC]] == NULL) {
+            printf("Error: instruccion invalida\n");
+            corriendo = 0;
+            break;
+}
         // Paso 5: si está activo el modo -d, muestro el desensamblado
         if (modo_disassembler) {
             mostrar_desensamblado(MV, fisica_ip, tamanio_op);
