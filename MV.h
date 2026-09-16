@@ -26,7 +26,7 @@ typedef enum {
     REG_LAR, REG_MAR, REG_MBR,
     REG_EAX = 10, REG_EBX, REG_ECX, REG_EDX, REG_EEX, REG_EFX,
     REG_AC = 16, REG_CC,
-    REG_CS = 26, REG_DS
+    REG_CS = 26, REG_DS 
 } CodigoRegistro;
 
 //STRUCT - DEFINICION DE LA MAQUINA VIRTUAL
