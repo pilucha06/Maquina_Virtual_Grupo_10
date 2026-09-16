@@ -197,7 +197,7 @@ void ejecutar(TMV *MV, int modo_disassembler) {
             printf("Error: instruccion invalida\n");
             corriendo = 0;
             break;
-}
+        }
         // Paso 5: si está activo el modo -d, muestro el desensamblado
         if (modo_disassembler) {
             mostrar_desensamblado(MV, fisica_ip, tamanio_op);
