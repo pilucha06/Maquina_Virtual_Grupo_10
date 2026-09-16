@@ -139,23 +139,17 @@ void mostrar_desensamblado(TMV *MV, int fisica_ip, int tamanio_total) {
 
     printf("[%04X] ", fisica_ip);
     imprimir_instruccion_hex(MV, fisica_ip, tamanio_total);
-    printf("| %s ", nombres_mnemonicos[MV->registros[REG_OPC]]);
+    printf("| %s", nombres_mnemonicos[MV->registros[REG_OPC]]);
 
     if (op_A_str[0] != '\0' && op_B_str[0] != '\0')
-        printf("%s, %s\n", op_A_str, op_B_str);
+        printf(" %s, %s\n", op_A_str, op_B_str);
     else if (op_A_str[0] != '\0')
-        printf("%s\n", op_A_str);
+        printf(" %s\n", op_A_str);
     else
         printf("\n");
 }
-
 void ejecutar(TMV *MV, int modo_disassembler) {
     int corriendo = 1;
-
-    MV->registros[REG_DS] = (SEG_DAT << BITS_SEGMENTO) | 0;
-    MV->registros[REG_CS] = SEG_COD;
-    MV->registros[REG_IP] = MV->registros[REG_CS];
-
     while (corriendo) {
 
         // Paso 1: validar que exista al menos el primer byte de la instrucción

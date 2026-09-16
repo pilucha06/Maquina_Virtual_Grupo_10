@@ -1,32 +1,12 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
-#include "IniciarMV.h" 
+#include "IniciarMV.h"
+#include "Ejecucion.h"   // <-- agregar este include
 
-void mostrarResult(int result){
-    switch (result) {
-        case OK:
-            printf("Inicializacion de MV exitosa.\n");
-            break;
-        case ERR_ARCH:
-            printf("ERROR: Archivo corrupto.\n");
-            break;
-        case ERR_ID:
-            printf("ERROR: Id especificado en archivo no coincide con Id de MV\n");
-            break;
-        case ERR_VER:
-            printf("ERROR: Version especificada en archivo no coincide con version de MV\n");
-            break;
-        case ERR_TAM_COD:
-            printf("ERROR: Codigo demasiado grande para ser ejecutado.\n");
-            break;
-        default:
-            printf("ERROR: Sucedio algo inesperado durante ejecucion.\n");
-            break;
-    }
-}
+...
 
-int main(int argc, char *argv[]){ //cada elem de argv es un string!
+int main(int argc, char *argv[]){
     TMV MV;
     int i, mostrarDis = 0, result;
 
@@ -34,14 +14,13 @@ int main(int argc, char *argv[]){ //cada elem de argv es un string!
         if (reservoEspacioMV(&MV)){
             result = inicializoMV(&MV, argv[1]);
             mostrarResult(result);
-            if (result == OK){ //si todo salio bien, MV ya esta lista para procesar
-                /*for (int i = 2; i < argc; i++)
+            if (result == OK){
+                for (i = 2; i < argc; i++)
                     if (strcmp(argv[i], "-d") == 0)
                         mostrarDis = 1;
-                if (mostrarDis)
-                    //desensamblar(&MV); 
-                //ejecucion de MV...
-                */
+
+                ejecutar(&MV, mostrarDis);
+
                 liberarMV(&MV);
                 return 0;
             }
