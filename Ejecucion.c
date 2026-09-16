@@ -15,6 +15,8 @@ después de inicializar todas las estructuras*/
 #define MASCARA_OPCODE          0x1F
 #define OPCODE_STOP             0x0F
 #define TAM_BUFFER_TEXTO        32
+#define BIT_SIGNO_16            0x8000  // bit más alto de un valor de 16 bits (indica negativo)
+#define COMPLEMENTO_16          0x10000 // para restaurar el signo real de un valor de 16 bits
 
 const char *nombres_registros[CANT_REGS] = {
     [REG_IP]  = "IP",  [REG_OPC] = "OPC", [REG_OP1] = "OP1", [REG_OP2] = "OP2",
@@ -87,6 +89,15 @@ int get_RAM(int tipo_op, int fisica_ip, TMV *MV) {
     return valor;
 }
 
+/* extender_signo_16: interpreta un valor de 16 bits (offset o inmediato) como
+   número con signo (complemento a 2), según pide el documento (-32768..32767).
+   Sin esto, cualquier valor negativo se leería como un número positivo grande. */
+int extender_signo_16(int valor16) {
+    if (valor16 & BIT_SIGNO_16)
+        return valor16 - COMPLEMENTO_16;
+    return valor16;
+}
+
 void imprimir_instruccion_hex(TMV *MV, int fisica_inicio, int tamanio_total) {
     for (int i = 0; i < tamanio_total; i++) {
         printf("%02X ", MV->RAM[fisica_inicio + i]);
@@ -104,13 +115,18 @@ void formatear_operando(int operando, char *buffer) {
         case 1: // registro
             snprintf(buffer, TAM_BUFFER_TEXTO, "%s", nombres_registros[valor & MASCARA_OPCODE]);
             break;
-        case 2: // inmediato
-            snprintf(buffer, TAM_BUFFER_TEXTO, "%d", valor);
+        case 2: { // inmediato (con signo)
+            int inmediato = extender_signo_16(valor & MASCARA_16_BITS);
+            snprintf(buffer, TAM_BUFFER_TEXTO, "%d", inmediato);
             break;
-        case 3: { // memoria: [REG+offset]
+        }
+        case 3: { // memoria: [REG+offset] o [REG-offset]
             int codigo_reg = valor & MASCARA_OPCODE;
-            int offset     = (valor >> 8) & MASCARA_16_BITS;
-            snprintf(buffer, TAM_BUFFER_TEXTO, "[%s+%d]", nombres_registros[codigo_reg], offset);
+            int offset     = extender_signo_16((valor >> 8) & MASCARA_16_BITS);
+            if (offset >= 0)
+                snprintf(buffer, TAM_BUFFER_TEXTO, "[%s+%d]", nombres_registros[codigo_reg], offset);
+            else
+                snprintf(buffer, TAM_BUFFER_TEXTO, "[%s%d]", nombres_registros[codigo_reg], offset);
             break;
         }
     }
