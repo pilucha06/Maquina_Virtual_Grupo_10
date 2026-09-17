@@ -1,6 +1,44 @@
-//definir las estructuras
+#include <stdlib.h>
+#include <stdio.h>
+#include <string.h>
+#include "IniciarMV.h"
+#include "Ejecucion.h"   // <-- agregar este include
 
-int main(int argc, int args[]){
+...
+
+int main(int argc, char *argv[]){
+    TMV MV;
+    int i, mostrarDis = 0, result;
+
+    if (argc >= 2)
+        if (reservoEspacioMV(&MV)){
+            result = inicializoMV(&MV, argv[1]);
+            mostrarResult(result);
+            if (result == OK){
+                for (i = 2; i < argc; i++)
+                    if (strcmp(argv[i], "-d") == 0)
+                        mostrarDis = 1;
+
+                ejecutar(&MV, mostrarDis);
+
+                liberarMV(&MV);
+                return 0;
+            }
+            else{
+                liberarMV(&MV);
+                return 1;
+            }
+        }
+        else{
+            printf("ERROR: No se pudo reservar espacio para componentes de la MV");
+            return 1;
+        }
+    else{
+        printf("ERROR: Parametros incorrectos o insuficientes");
+        return 1;
+    }
+}
+
     //argc el tamaño del vec
     //args nombre del archivo ejecutable .vmx [0], flag [-d]
     /*
@@ -33,4 +71,3 @@ int main(int argc, int args[]){
         cargar las instrucciones en la memoria RAM
         CS apunta al inicio de las instrucciones, DS aputa a el final de las instrucciones(pos CS + tamaño)
     */
-}
