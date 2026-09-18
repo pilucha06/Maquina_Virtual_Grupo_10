@@ -111,7 +111,6 @@ typedef void (*setters)(TMV *, int, int);
 getters vecGet[MAXVEC] = { NULL, getReg, getInm, getMem };
 setters vecSet[MAXVEC] = { NULL, setReg, NULL, setMem };
 
-
 /*Los 8 bits mas significativos (el byte mas alto): 
 Almacenan el codigo del tipo de operando:
 00 (0): Ninguno
