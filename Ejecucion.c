@@ -43,8 +43,9 @@ const char *nombres_mnemonicos[CANT_REGS] = {
    valida que la posición inicial sea correcta y que se puedan leer esos bytes
    sin salirse del segmento. Si es válida, devuelve la posición física inicial. */
 int direc_fisica(int direc_logica, TMV *MV, int cant_bytes) {
-    int seg    = (direc_logica >> BITS_SEGMENTO) & MASCARA_16_BITS;
-    int offset = direc_logica & MASCARA_16_BITS;
+    int seg        = (direc_logica >> BITS_SEGMENTO) & MASCARA_16_BITS;
+    int offset_raw = direc_logica & MASCARA_16_BITS;
+    int offset     = extender_signo_16(offset_raw);   // reinterpreto el offset con signo (por si es negativo = invalido)
 
     if (seg < 0 || seg >= CANT_SEGS || MV->tablaSegmentos[seg] == ENTRADA_LIBRE)
         return -1; // índice inválido en la tabla o entrada no usada
@@ -53,7 +54,7 @@ int direc_fisica(int direc_logica, TMV *MV, int cant_bytes) {
     int tamanio_seg = MV->tablaSegmentos[seg] & MASCARA_16_BITS;
 
     if (offset < 0 || offset + cant_bytes > tamanio_seg)
-        return -1; // se cae del segmento
+        return -1; // se cae del segmento (por abajo o por arriba)
 
     return base + offset;
 }
