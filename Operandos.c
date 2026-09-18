@@ -70,12 +70,15 @@ int getInm(TMV *mv, int op){
 }
 
 int getMem(TMV *mv, int op){
-    int regNum, segmento, direLogica, offset, valor;
-    regNum = op & 0x1F; // dire->5 ult bits
-    offset = (short)((op >> 8) &  0xFFFF); // 8=dire+3 reservados
-    segmento= mv->registros[regNum];
+    int regNum, segmento, direLogica, offset, valor, puntero, offsetPuntero;
+    offset = (short)((op >> 8) &  0xFFFF); // corro 8=dire +3 reservados, [EBX + 2] despl extra
+    regNum = op & 0x1F; // dire reg->5 ult bits
+    //puntero=elem en reg=> 16 izq=segmento, 16 der= offset en segmento
+    puntero= mv->registros[regNum];
+    segmento= (puntero >> 16) & 0xFFFF;
+    offsetPuntero=puntero & 0xFFFF;
     //calculo direccion logica = 2 bytes +s segmento + 2 bytes -s offset
-    direLogica = (segmento << 16) | (offset & 0xFFFF);
+    direLogica = (segmento << 16) | ((offsetPuntero + offset) & 0xFFFF);
     valor = 0;
     leerMemoria(mv, direLogica, &valor);
     return valor; 
@@ -87,13 +90,16 @@ void setReg(TMV *mv, int op, int valor){
     mv->registros[regNum] = valor;
 }
 
+
 void setMem(TMV *mv, int op, int valor){
-    int regNum, segmento, direLogica, offset;
+    int regNum, segmento, direLogica, offset, offsetPuntero, puntero;
+    offset = (short)((op >> 8) &  0xFFFF); // corro 8=dire+3 reservados
     regNum = op & 0x1F; // dire->5 ult bits
-    offset = (short)((op >> 8) &  0xFFFF); // 8=dire+3 reservados
-    segmento= mv->registros[regNum];
+    puntero= mv->registros[regNum];
+    segmento= (puntero >> 16) & 0xFFFF;
+    offsetPuntero=puntero & 0xFFFF;
     //calculo direccion logica = 2 bytes +s segmento + 2 bytes -s offset
-    direLogica = (segmento << 16) | (offset & 0xFFFF);
+    direLogica = (segmento << 16) | ((offset + offsetPuntero) & 0xFFFF);
     escribirMemoria(mv, direLogica, valor);
 }        
 
