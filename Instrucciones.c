@@ -1,6 +1,7 @@
 #include "MV.h"
 #include "Operandos.h"
 #include "Ejecucion.h"
+#include <stdlib.h>
 #include "Instrucciones.h"
 
 instrucciones vecInstr[MAXINSTR] = { SYS, JMP, JP, JN, JZ, JC, JV, JNP, JNN, JNZ, NOT, NULL, NULL, NULL, NULL, STOP, MOV, ADD, SUB, MUL, DIV, CMP, AND, OR, XOR, SWAP, SHL, SHR, SAR, LDL, LDH, RND };
@@ -183,6 +184,47 @@ XOR OPN_A, OPN_B
 Por lo tanto, afecta al registro CC del mismo modo que el último XOR.*/
 
 void SWAP(){
+
+}
+
+/*SHL, SHR, SAR: realizan desplazamientos de los bits almacenados en un registro o una posición de
+memoria y afectan al registro CC. SHL y SHR efectuan corrimientos a la izquierda y a la derecha
+(respectivamente) y los bits que quedan libres se completan con ceros. SAR también desplaza a la
+derecha, pero los bits de la izquierda propagan el bit anterior. Es decir, si el contenido es un número
+negativo, el resultado también lo será, porque agrega unos. Si es un número positivo, agrega ceros.*/
+
+
+void SHL(){
+
+}
+
+void SHR(){
+
+}
+
+void SAR(){
+
+}
+
+/*LDL: carga los 2 bytes menos significativos del primer operando, con los 2 bytes menos significativos
+del segundo operando. Esta instrucción está especialmente pensada para poder cargar un inmediato de
+16 bits, aunque también se puede utilizar con otro tipo de operando.*/
+
+void LDL(){
+
+}
+
+/*LDH: carga los 2 bytes más significativos del primer operando, con los 2 bytes menos significativos del
+segundo operando. Esta instrucción está especialmente pensada para poder cargar un inmediato de 16
+bits, aunque también se puede utilizar con otro tipo de operando.*/
+
+void LDH(){
+
+}
+
+/*RND: carga en el primer operando un número aleatorio entre 0 y el valor del segundo operando*/
+
+void RND(){
 
 }
 

@@ -2,6 +2,7 @@
 /*Arranca con la maquina ya inicializada, el primer llamado desde el main sería ejecutar(MV, modo_disassembler)
 después de inicializar todas las estructuras*/
 
+#include <stdlib.h>
 #include <stdio.h>
 #include "Ejecucion.h"
 #include "Instrucciones.h"
@@ -92,7 +93,7 @@ int get_RAM(int tipo_op, int fisica_ip, TMV *MV) {
 }
 
 /* extender_signo_16: interpreta un valor de 16 bits (offset o inmediato) como
-   número con signo (complemento a 2), según pide el documento (-32768..32767).
+   número con signo (complemento a 2).
    Sin esto, cualquier valor negativo se leería como un número positivo grande. */
 int extender_signo_16(int valor16) {
     if (valor16 & BIT_SIGNO_16)
@@ -105,7 +106,6 @@ void imprimir_instruccion_hex(TMV *MV, int fisica_inicio, int tamanio_total) {
         printf("%02X ", MV->RAM[fisica_inicio + i]);
     }
 }
-
 void formatear_operando(int operando, char *buffer) {
     int tipo  = (operando >> BITS_TIPO_OPERANDO) & MASCARA_BYTE;
     int valor = operando & MASCARA_VALOR_OPERANDO;
@@ -157,7 +157,7 @@ void ejecutar(TMV *MV, int modo_disassembler) {
         // Paso 1: validar que exista al menos el primer byte de la instrucción
         int fisica_ip = direc_fisica(MV->registros[REG_IP], MV, 1);
         if (fisica_ip == -1) {
-            printf("Error: fallo de segmento\n");
+            MV->error=3;
             corriendo = 0;
             break;
         }
@@ -171,7 +171,7 @@ void ejecutar(TMV *MV, int modo_disassembler) {
         int tamanio_op = tipo_A + tipo_B + 1;
         if (cant_op != 0) {
             if (direc_fisica(MV->registros[REG_IP], MV, tamanio_op) == -1) {
-                printf("Error: fallo de segmento\n");
+                MV->error=3;
                 corriendo = 0;
                 break;
             }
@@ -196,7 +196,7 @@ void ejecutar(TMV *MV, int modo_disassembler) {
         }
         // Paso 4.5: valido que el opcode exista
         if (nombres_mnemonicos[MV->registros[REG_OPC]] == NULL) {
-            printf("Error: instruccion invalida\n");
+            MV->error=1;
             corriendo = 0;
             break;
         }
@@ -209,9 +209,20 @@ void ejecutar(TMV *MV, int modo_disassembler) {
         int offset_actual = MV->registros[REG_IP] & MASCARA_16_BITS;
         offset_actual += tamanio_op;
         MV->registros[REG_IP] = (MV->registros[REG_IP] & ~MASCARA_16_BITS) | (offset_actual & MASCARA_16_BITS);
-
-        // FALTA: acá va el switch/dispatch que ejecuta la operación según MV->registros[REG_OPC]
-        // (MOV, ADD, SUB, JMP, STOP, etc.) — sin esto, el programa nunca hace nada
-        // con la instrucción ni corta la ejecución salvo por error de segmento.
+        
+        if (MV->registros[REG_OPC] == OPCODE_STOP)
+            corriendo = 0;
+        //llamado a las operaciones
+        
+    }
+    switch (MV->error){
+        case 0: printf("Ejecución exitosa");
+                break;
+        case 1: printf("Error: Instrucción invalida");
+                break;
+        case 2: printf("Error: División por cero");
+                break;
+        case 3: printf("Error: Falla de segmento");
+                break;
     }
 }
