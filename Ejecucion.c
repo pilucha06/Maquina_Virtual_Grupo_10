@@ -2,8 +2,10 @@
 /*Arranca con la maquina ya inicializada, el primer llamado desde el main sería ejecutar(MV, modo_disassembler)
 después de inicializar todas las estructuras*/
 
+#include <stdlib.h>
 #include <stdio.h>
 #include "Ejecucion.h"
+#include "Instrucciones.h"
 
 // Máscaras y corrimientos propios de la codificación de instrucciones/operandos
 // (no están en MV.h porque son de formato, no de la estructura de la máquina)
@@ -215,12 +217,12 @@ void ejecutar(TMV *MV, int modo_disassembler) {
     }
     switch (MV->error){
         case 0: printf("Ejecución exitosa");
-                break
+                break;
         case 1: printf("Error: Instrucción invalida");
-                break
+                break;
         case 2: printf("Error: División por cero");
-                break
+                break;
         case 3: printf("Error: Falla de segmento");
-                break
+                break;
     }
 }

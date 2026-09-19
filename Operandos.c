@@ -3,7 +3,6 @@
 #include "Operandos.h"
 #include "Ejecucion.h"
 
-#define MAXVEC 4
 
 //FUNCIONES PARTICULARES DE MEMORIA 
 //cito de la especificación:
@@ -18,7 +17,7 @@ void leerMemoria(TMV *mv, int direLogica, int *valor){
     int i, direFisica;
     direFisica = dire_fisica(direLogica, mv, 4);
     if (direFisica == -1 )
-        printf("Error: fallo de segmento al leer memoria.\n");
+        mv->error=3;
     else{
         mv->registros[REG_LAR] = direLogica;
         mv->registros[REG_MAR] = (4<<16) | (direFisica & 0xFFFF);
@@ -35,7 +34,7 @@ void escribirMemoria(TMV *mv, int direLogica, int valor){
     int direFisica;
     direFisica = dire_fisica(direLogica, mv, 4);
     if (direFisica == -1 ){
-        printf("Error: fallo de segmento al escribir en memoria.\n");
+        mv->error=3;
     }
     else{
         mv->registros[REG_LAR] = direLogica;
@@ -103,10 +102,7 @@ void setMem(TMV *mv, int op, int valor){
     escribirMemoria(mv, direLogica, valor);
 }        
 
-//FUNCIONES PPALES Y DEFINICIONES
-
-typedef int (*getters)(TMV *, int);
-typedef void (*setters)(TMV *, int, int);
+//FUNCIONES PPALES 
 
 getters vecGet[MAXVEC] = { NULL, getReg, getInm, getMem };
 setters vecSet[MAXVEC] = { NULL, setReg, NULL, setMem };
