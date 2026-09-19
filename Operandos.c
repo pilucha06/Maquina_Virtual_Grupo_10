@@ -3,7 +3,6 @@
 #include "Operandos.h"
 #include "Ejecucion.h"
 
-#define MAXVEC 4
 
 //FUNCIONES PARTICULARES DE MEMORIA 
 //cito de la especificación:
@@ -103,10 +102,7 @@ void setMem(TMV *mv, int op, int valor){
     escribirMemoria(mv, direLogica, valor);
 }        
 
-//FUNCIONES PPALES Y DEFINICIONES
-
-typedef int (*getters)(TMV *, int);
-typedef void (*setters)(TMV *, int, int);
+//FUNCIONES PPALES 
 
 getters vecGet[MAXVEC] = { NULL, getReg, getInm, getMem };
 setters vecSet[MAXVEC] = { NULL, setReg, NULL, setMem };

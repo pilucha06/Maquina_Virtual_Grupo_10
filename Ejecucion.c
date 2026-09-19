@@ -4,6 +4,7 @@ después de inicializar todas las estructuras*/
 
 #include <stdio.h>
 #include "Ejecucion.h"
+#include "Instrucciones.h"
 
 // Máscaras y corrimientos propios de la codificación de instrucciones/operandos
 // (no están en MV.h porque son de formato, no de la estructura de la máquina)
