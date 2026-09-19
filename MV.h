@@ -37,6 +37,7 @@ typedef struct {
 
     char     id[TAM_ID + 1];  // "VMX26" + '\0'
     unsigned char  version;
+    short int error; //1,2,3(ninguno, instrucción invalida, división por cero, falla de segmento)
 } TMV;
 
 //UTILIDADES PARA ARMAR Y LEER VALORES EMPAQUETADOS

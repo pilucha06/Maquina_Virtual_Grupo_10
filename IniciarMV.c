@@ -96,7 +96,7 @@ int inicializoMV(TMV *MV, char nomArch[]){
         fclose(arch);
         return ERR_ARCH;
     }
-
+    MV->error=0;
     fclose(arch);
     return OK;
 }
