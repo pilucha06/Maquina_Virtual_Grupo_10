@@ -15,7 +15,7 @@ obtuvo después de la lectura. La lectura de la instrucción no debe modificar n
 
 void leerMemoria(TMV *mv, int direLogica, int *valor){
     int i, direFisica;
-    direFisica = dire_fisica(direLogica, mv, 4);
+    direFisica = direc_fisica(direLogica, mv, 4);
     if (direFisica == -1 )
         mv->error=3;
     else{
@@ -32,7 +32,7 @@ void leerMemoria(TMV *mv, int direLogica, int *valor){
 
 void escribirMemoria(TMV *mv, int direLogica, int valor){
     int direFisica;
-    direFisica = dire_fisica(direLogica, mv, 4);
+    direFisica = direc_fisica(direLogica, mv, 4);
     if (direFisica == -1 ){
         mv->error=3;
     }

@@ -2,6 +2,7 @@
 #include "Operandos.h"
 #include "Ejecucion.h"
 #include <stdlib.h>
+#include <stdint.h>
 #include "Instrucciones.h"
 
 
@@ -18,9 +19,9 @@ void SYS(TMV *mv, int opa, int opb){
 
 void salto(TMV *mv, int opa){
     int inicioCS, opA;
-    inicioCS=((mv->tablaSegmentos[REG_CS])  >> 16 ) & 0xFF;
+    inicioCS=((mv->tablaSegmentos[SEG_COD])  >> 16 ) & 0xFFFF;
     opA= get(mv, opa);
-    mv->registros[REG_IP]=inicioCS+opA;
+    mv->registros[REG_IP]=inicioCS | (opA & 0xFFFF)
 }
 
 
@@ -68,10 +69,76 @@ void JNZ(TMV *mv, int opa, int opb){ //salta cuando es positivo o negativo
         salto(mv, opa);
 }
 
-//------------------------
+// Arma el registro CC completo a partir del resultado y de carry/overflow
+// ya calculados por la operación que llama (cada familia de instrucciones
+// calcula carry/overflow distinto, ver funciones auxiliares mas abajo).
+void modCC(TMV *mv, int valor, int carry, int overflow){
+    int cc = 0;
+    if (valor < 0)  
+        cc |= (1 << 31); // N
+    if (valor == 0) 
+        cc |= (1 << 30); // Z
+    if (carry)       
+        cc |= (1 << 29); // C
+    if (overflow)    
+        cc |= (1 << 28); // V
+    mv->registros[REG_CC] = cc;
+}
 
-void modCC(TMV *mv, int valor){
-    mv->registros[REG_CC];// *`u`*
+// Funciones auxiliares de carry/overflow
+
+// Para ADD/SUB: suma o resta con signo de 32 bits
+void carryOverflowSuma(int opA, int opB, int res, int *carry, int *overflow){
+    long long suma64 = (long long)(unsigned int)opA + (unsigned int)opB;
+    *carry = (suma64 >> 32) & 1; //corre 32 bits de la cadena de 64, si el bit 33 = 1 hay carry
+    *overflow = ((opA >= 0 && opB >= 0 && res < 0) || (opA < 0  && opB < 0  && res >= 0));
+    // 2 neg = pos | 2 pos = neg|0 (regla de overflow en suma)
+}
+
+void carryOverflowResta(int opA, int opB, int res, int *carry, int *overflow){
+    long long suma64 = (long long)(unsigned int)opA + (unsigned int)(-opB);
+    *carry = (suma64 >> 32) & 1;// idem suma 
+    *overflow = ((opA < 0) != (opB < 0)) && ((res < 0) != (opA < 0));//distintos signos entre operandos y entre opA y res
+}
+
+// Para MUL
+void carryOverflowMul(int opA, int opB, int *carry, int *overflow){
+    long long prod64 = (long long)opA * (long long)opB;
+    *overflow = (prod64 < INT32_MIN || prod64 > INT32_MAX);//es mayor o menor a lo que entra en un int de 32 bits?
+    *carry = (((unsigned long long)prod64) >> 32) != 0;//En los restantes 32 bits hay algun 1?
+}
+
+// Para SHL: bits que se "caen" por la izquierda
+void carryOverflowShl(int opA, int cant, int *carry, int *overflow){
+    if (cant <= 0) { 
+        *carry = 0; *overflow = 0; return; 
+    }
+    if (cant >= 32) {
+        *carry = (opA != 0);       // si había algo, se "cayó" todo -> hay carry
+        *overflow = (opA != 0);    // y también overflow, salvo que opA ya fuera 0
+        return;
+    }
+    int bits_perdidos = (unsigned int)opA >> (32 - cant);//shr para conseguir lo "caído"
+    *carry = (bits_perdidos != 0);//si se perdió algo entonces carry
+    int signo_original = (opA < 0) ? -1 : 0;
+    *overflow = (bits_perdidos != (signo_original & ((1 << cant) - 1)));
+    /*creas mascara de cant y comparas con el signo -1 & (0xF..) o 0 & (000) serian true
+    ej: cant=3 1<<3 = 1000 - 1 = 0111(máscara)
+    overflow = perdí bits que son significativos?(no son extensión del signo)*/
+}
+
+// Para SHR/SAR: bits que se "caen" por la derecha (mismo criterio para ambas)
+void carryOverflowShr(int opA, int cant, int *carry, int *overflow){
+    if (cant <= 0) 
+        *carry = 0;  
+    else
+        if (cant >= 32) 
+            *carry = (opA != 0);   // todo el numero se "cayo" por la derecha
+        else {   
+            int bits_perdidos = opA & ((1 << cant) - 1);
+            *carry = (bits_perdidos != 0);
+        }
+    *overflow = 0; // no hay un criterio claro de overflow para desplazamientos a la derecha
 }
 
 void NOT(TMV *mv, int opa, int opb){ //solamente invertir bits y actualiza reg CC
@@ -93,53 +160,55 @@ void MOV(TMV *mv, int opa, int opb){
 }
 
 void ADD(TMV *mv, int opa, int opb){
-    int opA, opB, res;
+    int opA, opB, res, carry, overflow;
     opA=get(mv, opa);
     opB=get(mv, opb);
     res= opA+opB;
+    carryOverflowSuma(opA, opB, res, &carry, &overflow);
     set(mv, opa, res); 
-    modCC(mv, res);
+    modCC(mv, res, carry, overflow);
 }
 
 void SUB(TMV *mv, int opa, int opb){
-    int opA, opB;
-    int res;
+    int opA, opB, res, carry, overflow;
     opA=get(mv, opa);
     opB=get(mv, opb);
     res = opA-opB;
+    carryOverflowResta(opA, opB, res, &carry, &overflow);
     set(mv, opa, res);
-    modCC(mv, res); 
+    modCC(mv, res, carry, overflow); 
 }
-
 void MUL(TMV *mv, int opa, int opb){
-    int opA, opB;
-    unsigned int res;
+    int opA, opB, res, carry, overflow;
     opA=get(mv, opa);
     opB=get(mv, opb);
     res = opA*opB;
+    carryOverflowMul(opA, opB, &carry, &overflow);
     set(mv, opa, res);
-    modCC(mv, res); 
+    modCC(mv, res, carry, overflow); 
 }
-
 void DIV(TMV *mv, int opa, int opb){
-    int opA, opB;
-    unsigned int res;
+    int opA, opB, res, overflow;
     opA=get(mv, opa);
     opB=get(mv, opb);
     if (opB != 0){
         res = opA/opB;
+        overflow = (opA == INT32_MIN && opB == -1); // unico caso real de desborde en division
+        mv->registros[REG_AC] = opA % opB; // resto de la division, pedido por el documento
         set(mv, opa, res);
-        modCC(mv, res); }
+        modCC(mv, res, 0, overflow); // la division nunca genera carry
+    }
     else
         mv->error=2; //div x cero
 }
 
 void CMP(TMV *mv, int opa, int opb){
-    int opA, opB, res;
+    int opA, opB, res, carry, overflow;
     opA=get(mv, opa);
     opB=get(mv, opb);
     res = opA-opB;
-    modCC(mv, res); 
+    carryOverflowResta(opA, opB, res, &carry, &overflow);
+    modCC(mv, res, carry, overflow); 
 }
 
 /*AND, OR, XOR: efectúan las operaciones lógicas básicas bit a bit entre los operandos y afectan al
@@ -151,7 +220,7 @@ void AND(TMV *mv, int opa, int opb){
     opB=get(mv, opb);
     res = opA & opB;
     set(mv, opa, res);
-    modCC(mv, res);
+    modCC(mv, res, 0, 0); // logica: sin carry ni overflow
 }
 
 void OR(TMV *mv, int opa, int opb){
@@ -160,17 +229,16 @@ void OR(TMV *mv, int opa, int opb){
     opB=get(mv, opb);
     res = opA | opB;
     set(mv, opa, res);
-    modCC(mv, res);
+    modCC(mv, res, 0, 0);
 }
 
 void XOR(TMV *mv, int opa, int opb){
-    int opA, opB;
-    int res;
+    int opA, opB, res;
     opA=get(mv, opa);
     opB=get(mv, opb);
     res = opA ^ opB;
     set(mv, opa, res);
-    modCC(mv, res);
+    modCC(mv, res, 0, 0);
 }
 
 /*SWAP: intercambia los valores de los operandos (ambos deben ser registros y/o celdas de memoria).
@@ -192,38 +260,41 @@ memoria y afectan al registro CC. SHL y SHR efectuan corrimientos a la izquierda
 
 
 void SHL(TMV *mv, int opa, int opb){
-    int opA, opB, res;
+    int opA, opB, res, carry, overflow;
     opA=get(mv, opa);
     opB=get(mv, opb);
     res=opA;
     res=res << opB;
+    carryOverflowShl(opA, opB, &carry, &overflow);
     set(mv, opa, res);
-    modCC(mv, res);
+    modCC(mv, res, carry, overflow);
 }
 
 void SHR(TMV *mv, int opa, int opb){
-    int opA, opB, res;
+    int opA, opB, res, carry, overflow;
     opA=get(mv, opa);
     opB=get(mv, opb);
     res=opA;
     res = (unsigned int)res >> opB;
+    carryOverflowShr(opA, opB, &carry, &overflow);
     set(mv, opa, res);
-    modCC(mv, res);
+    modCC(mv, res, carry, overflow);
 }
 
 /*SAR también desplaza a la
 derecha, pero los bits de la izquierda propagan el bit anterior. Es decir, si el contenido es un número
 negativo, el resultado también lo será, porque agrega unos. Si es un número positivo, agrega ceros.*/
 
-//ni idea como programar esto por los 1s a la izq
 void SAR(TMV *mv, int opa, int opb){
-    int opA, opB, res;
+    int opA, opB, res, carry, overflow;
     opA=get(mv, opa);
     opB=get(mv, opb);
-    res=opA >> opB;
+    res=opA >> opB; // en GCC, correr un int con signo a la derecha ya propaga el bit de signo
+    carryOverflowShr(opA, opB, &carry, &overflow);
     set(mv, opa, res);
-    modCC(mv, res); 
+    modCC(mv, res, carry, overflow); 
 }
+
 
 /*LDL: carga los 2 bytes menos significativos del primer operando, con los 2 bytes menos significativos
 del segundo operando. Esta instrucción está especialmente pensada para poder cargar un inmediato de
@@ -256,13 +327,12 @@ void LDH(TMV *mv, int opa, int opb){
 //random esta en stdlib!
 void RND(TMV *mv, int opa, int opb){
     int opB, aleatorio;
-    opB=get(mv,opb);
-    if (opB > 0){
-        aleatorio=rand() % (opB + 1);
+    opB = get(mv, opb);
+    if (opB >= 0) {              // <- 0 también es válido
+        aleatorio = rand() % (opB + 1);
         set(mv, opa, aleatorio);
-    } else
-        mv->error=2; // o podemos guardar 0 :)
-    // no modifica CC
+    }
+    // si opB es negativo, el documento no dice qué hacer
 }
 
 
