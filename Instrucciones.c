@@ -19,9 +19,9 @@ void SYS(TMV *mv, int opa, int opb){
 
 void salto(TMV *mv, int opa){
     int inicioCS, opA;
-    inicioCS=((mv->tablaSegmentos[SEG_COD])  >> 16 ) & 0xFFFF;
+    inicioCS=(mv->registros[REG_CS]) & 0xFFFF0000;
     opA= get(mv, opa);
-    mv->registros[REG_IP]=inicioCS | (opA & 0xFFFF)
+    mv->registros[REG_IP]=inicioCS | (opA & 0xFFFF);
 }
 
 
@@ -104,27 +104,29 @@ void carryOverflowResta(int opA, int opB, int res, int *carry, int *overflow){
 // Para MUL
 void carryOverflowMul(int opA, int opB, int *carry, int *overflow){
     long long prod64 = (long long)opA * (long long)opB;
-    *overflow = (prod64 < INT32_MIN || prod64 > INT32_MAX);//es mayor o menor a lo que entra en un int de 32 bits?
-    *carry = (((unsigned long long)prod64) >> 32) != 0;//En los restantes 32 bits hay algun 1?
+    *overflow = (prod64 < INT32_MIN || prod64 > INT32_MAX);
+    // Calculamos el carry como producto sin signo para ver si excede 32 bits
+    *carry = (((unsigned long long)(unsigned int)opA * (unsigned int)opB) >> 32) != 0;
 }
 
 // Para SHL: bits que se "caen" por la izquierda
 void carryOverflowShl(int opA, int cant, int *carry, int *overflow){
     if (cant <= 0) { 
-        *carry = 0; *overflow = 0; return; 
+        *carry = 0; 
+        *overflow = 0; 
+    } else if (cant >= 32) {
+        *carry = (opA != 0);
+        *overflow = (opA != 0);
+    } else {
+        int bits_perdidos = (unsigned int)opA >> (32 - cant);
+        *carry = (bits_perdidos != 0);
+        
+        // Aislamos el bit 31 antes y después de desplazar
+        int signo_original = (unsigned int)opA >> 31;
+        int signo_nuevo = (unsigned int)(opA << cant) >> 31;
+        
+        *overflow = (signo_original != signo_nuevo);
     }
-    if (cant >= 32) {
-        *carry = (opA != 0);       // si había algo, se "cayó" todo -> hay carry
-        *overflow = (opA != 0);    // y también overflow, salvo que opA ya fuera 0
-        return;
-    }
-    int bits_perdidos = (unsigned int)opA >> (32 - cant);//shr para conseguir lo "caído"
-    *carry = (bits_perdidos != 0);//si se perdió algo entonces carry
-    int signo_original = (opA < 0) ? -1 : 0;
-    *overflow = (bits_perdidos != (signo_original & ((1 << cant) - 1)));
-    /*creas mascara de cant y comparas con el signo -1 & (0xF..) o 0 & (000) serian true
-    ej: cant=3 1<<3 = 1000 - 1 = 0111(máscara)
-    overflow = perdí bits que son significativos?(no son extensión del signo)*/
 }
 
 // Para SHR/SAR: bits que se "caen" por la derecha (mismo criterio para ambas)
@@ -146,7 +148,7 @@ void NOT(TMV *mv, int opa, int opb){ //solamente invertir bits y actualiza reg C
     opA= get(mv, opa);
     res=~opA;
     set(mv, opa, res);
-    modCC(mv, res);
+    modCC(mv, res, 0, 0);
 }
 
 void STOP(TMV *mv, int opa, int opb){
@@ -157,6 +159,7 @@ void MOV(TMV *mv, int opa, int opb){
     int opB;
     opB=get(mv, opb);
     set(mv, opa, opB);
+    modCC(mv, opB, 0, 0);
 }
 
 void ADD(TMV *mv, int opa, int opb){
@@ -189,19 +192,26 @@ void MUL(TMV *mv, int opa, int opb){
 }
 void DIV(TMV *mv, int opa, int opb){
     int opA, opB, res, overflow;
-    opA=get(mv, opa);
-    opB=get(mv, opb);
-    if (opB != 0){
-        res = opA/opB;
-        overflow = (opA == INT32_MIN && opB == -1); // unico caso real de desborde en division
-        mv->registros[REG_AC] = opA % opB; // resto de la division, pedido por el documento
+    opA = get(mv, opa);
+    opB = get(mv, opb);
+    
+    if (opB != 0) {
+        overflow = (opA == INT32_MIN && opB == -1); // Detección previa
+        
+        if (overflow) {
+            res = opA; // Evitamos la división que hace crashear
+            mv->registros[REG_AC] = 0; 
+        } else {
+            res = opA / opB;
+            mv->registros[REG_AC] = opA % opB; // Guardamos el resto[cite: 2]
+        }
+        
         set(mv, opa, res);
-        modCC(mv, res, 0, overflow); // la division nunca genera carry
+        modCC(mv, res, 0, overflow); // División nunca da carry
+    } else {
+        mv->error = 2; // División por cero
     }
-    else
-        mv->error=2; //div x cero
 }
-
 void CMP(TMV *mv, int opa, int opb){
     int opA, opB, res, carry, overflow;
     opA=get(mv, opa);
