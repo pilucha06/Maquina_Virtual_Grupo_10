@@ -10,8 +10,8 @@
 
 instrucciones vecInstr[MAXINSTR] = { SYS, JMP, JP, JN, JZ, JC, JV, JNP, JNN, JNZ, NOT, NULL, NULL, NULL, NULL, STOP, MOV, ADD, SUB, MUL, DIV, CMP, AND, OR, XOR, SWAP, SHL, SHR, SAR, LDL, LDH, RND };
 
-//llamado a sistema
-// 0x1 -> READ, 0x2 -> WRITE
+//-------SECCION SYS--------
+//segun el formato leo de manera distinta, devuelve valor leido
 static int leerValor(int formato, TMV *mv){
     int valor = 0;
     unsigned int aux;          // para hexa y octal
@@ -44,9 +44,9 @@ static int leerValor(int formato, TMV *mv){
             scanf("%32s", bin);
             largo = strlen(bin);
             i = 0;
-            while (i < largo && mv->error == 0) {
+            while (i < largo && mv->error == 0) { //voy pasando del string a un numero binario, construyo bit a bit
                 if (bin[i] == '0' || bin[i] == '1')
-                    acum = (acum << 1) | (bin[i] - '0');
+                    acum = (acum << 1) | (bin[i] - '0'); 
                 else
                     mv->error = 1;
                 i++;
@@ -85,7 +85,7 @@ void sysRead(TMV *mv){
                 mv->error = 3;
             else {
                 dirCelda = (seg << 16) | offCelda;
-                printf("[%04X]: ", dirFis);
+                printf("[%04X]: ", dirFis); //En requerimientos pide esto
                 valor = leerValor(formato, mv);
                 if (mv->error == 0)
                     escribirMemoria(mv, dirCelda, tam, valor);
@@ -94,6 +94,8 @@ void sysRead(TMV *mv){
         }
     }
 }
+
+// 0x1 -> READ, 0x2 -> WRITE
 
 void SYS(TMV *mv, int opa, int opb){
     int llamada = get(mv, opa); // según llamada: sysRead(mv) o sysWrite(mv)
