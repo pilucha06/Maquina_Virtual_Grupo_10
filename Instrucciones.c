@@ -2,6 +2,8 @@
 #include "Operandos.h"
 #include "Ejecucion.h"
 #include <stdlib.h>
+#include <string.h>
+#include <stdio.h>
 #include "Instrucciones.h"
 
 #define SYS_READ  1
