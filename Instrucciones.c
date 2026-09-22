@@ -6,8 +6,6 @@
 #include "Instrucciones.h"
 
 
-instrucciones vecInstr[MAXINSTR] = { SYS, JMP, JP, JN, JZ, JC, JV, JNP, JNN, JNZ, NOT, NULL, NULL, NULL, NULL, STOP, MOV, ADD, SUB, MUL, DIV, CMP, AND, OR, XOR, SWAP, SHL, SHR, SAR, LDL, LDH, RND };
-
 //llamado a sistema
 // 0x1 -> READ, 0x2 -> WRITE
 void SYS(TMV *mv, int opa, int opb){
@@ -338,13 +336,15 @@ void LDH(TMV *mv, int opa, int opb){
 void RND(TMV *mv, int opa, int opb){
     int opB, aleatorio;
     opB = get(mv, opb);
-    if (opB >= 0) {              // <- 0 también es válido
+    if (opB > 0)             // <- 0 también es válido
         aleatorio = rand() % (opB + 1);
-        set(mv, opa, aleatorio);
-    }
+    else 
+        aleatorio=0;
+    set(mv, opa, aleatorio);
+
     // si opB es negativo, el documento no dice qué hacer
 }
-
+instrucciones vecInstr[MAXINSTR] = { SYS, JMP, JP, JN, JZ, JC, JV, JNP, JNN, JNZ, NOT, NULL, NULL, NULL, NULL, STOP, MOV, ADD, SUB, MUL, DIV, CMP, AND, OR, XOR, SWAP, SHL, SHR, SAR, LDL, LDH, RND };
 
 
 
