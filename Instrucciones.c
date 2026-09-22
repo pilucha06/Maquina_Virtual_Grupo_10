@@ -103,8 +103,9 @@ void SYS(TMV *mv, int opa, int opb){
     if (llamada == SYS_READ)
         sysRead(mv);
     else
-        if (llamada == SYS_WRITE)
+        if (llamada == SYS_WRITE){
             //funcion de tizi
+        }
         else
             mv->error = 1; //op invalida
 }
