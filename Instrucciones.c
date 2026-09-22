@@ -84,7 +84,6 @@ void modCC(TMV *mv, int valor, int carry, int overflow){
 }
 
 // Funciones auxiliares de carry/overflow
-
 // Para ADD/SUB: suma o resta con signo de 32 bits
 void carryOverflowSuma(int opA, int opB, int res, int *carry, int *overflow){
     long long suma64 = (long long)(unsigned int)opA + (unsigned int)opB;
@@ -94,9 +93,10 @@ void carryOverflowSuma(int opA, int opB, int res, int *carry, int *overflow){
 }
 
 void carryOverflowResta(int opA, int opB, int res, int *carry, int *overflow){
-    long long suma64 = (long long)(unsigned int)opA + (unsigned int)(-opB);
-    *carry = (suma64 >> 32) & 1;// idem suma 
-    *overflow = ((opA < 0) != (opB < 0)) && ((res < 0) != (opA < 0));//distintos signos entre operandos y entre opA y res
+    // resta como la hace el hardware: opA + ~opB + 1
+    unsigned long long suma64 = (unsigned long long)(unsigned int)opA + (unsigned int)~opB + 1;
+    *carry = (suma64 >> 32) & 1;
+    *overflow = ((opA < 0) != (opB < 0)) && ((res < 0) != (opA < 0));
 }
 
 // Para MUL
@@ -109,36 +109,35 @@ void carryOverflowMul(int opA, int opB, int *carry, int *overflow){
 
 // Para SHL: bits que se "caen" por la izquierda
 void carryOverflowShl(int opA, int cant, int *carry, int *overflow){
-    if (cant <= 0) { 
-        *carry = 0; 
-        *overflow = 0; 
+    unsigned int bits_perdidos;
+    int top;
+    if (cant <= 0) {
+        *carry = 0;
+        *overflow = 0;
     } else if (cant >= 32) {
         *carry = (opA != 0);
         *overflow = (opA != 0);
     } else {
-        int bits_perdidos = (unsigned int)opA >> (32 - cant);
+        bits_perdidos = (unsigned int)opA >> (32 - cant);
         *carry = (bits_perdidos != 0);
-        
-        // Aislamos el bit 31 antes y después de desplazar
-        int signo_original = (unsigned int)opA >> 31;
-        int signo_nuevo = (unsigned int)(opA << cant) >> 31;
-        
-        *overflow = (signo_original != signo_nuevo);
+        // entra en 32 bits solo si los cant+1 bits más altos son todos iguales al signo
+        top = opA >> (31 - cant);
+        *overflow = (top != 0 && top != -1);
     }
 }
 
 // Para SHR/SAR: bits que se "caen" por la derecha (mismo criterio para ambas)
 void carryOverflowShr(int opA, int cant, int *carry, int *overflow){
-    if (cant <= 0) 
-        *carry = 0;  
-    else
-        if (cant >= 32) 
-            *carry = (opA != 0);   // todo el numero se "cayo" por la derecha
-        else {   
-            int bits_perdidos = opA & ((1 << cant) - 1);
-            *carry = (bits_perdidos != 0);
-        }
-    *overflow = 0; // no hay un criterio claro de overflow para desplazamientos a la derecha
+    unsigned int bits_perdidos;
+    if (cant <= 0)
+        *carry = 0;
+    else if (cant >= 32)
+        *carry = (opA != 0);
+    else {
+        bits_perdidos = (unsigned int)opA & ((1u << cant) - 1);
+        *carry = (bits_perdidos != 0);
+    }
+    *overflow = 0;
 }
 
 void NOT(TMV *mv, int opa, int opb){ //solamente invertir bits y actualiza reg CC
@@ -269,10 +268,14 @@ memoria y afectan al registro CC. SHL y SHR efectuan corrimientos a la izquierda
 
 void SHL(TMV *mv, int opa, int opb){
     int opA, opB, res, carry, overflow;
-    opA=get(mv, opa);
-    opB=get(mv, opb);
-    res=opA;
-    res=res << opB;
+    opA = get(mv, opa);
+    opB = get(mv, opb);
+    if (opB <= 0)
+        res = opA;                                  // no desplaza
+    else if (opB >= 32)
+        res = 0;                                    // se cae todo
+    else
+        res = (int)((unsigned int)opA << opB);
     carryOverflowShl(opA, opB, &carry, &overflow);
     set(mv, opa, res);
     modCC(mv, res, carry, overflow);
@@ -280,10 +283,14 @@ void SHL(TMV *mv, int opa, int opb){
 
 void SHR(TMV *mv, int opa, int opb){
     int opA, opB, res, carry, overflow;
-    opA=get(mv, opa);
-    opB=get(mv, opb);
-    res=opA;
-    res = (unsigned int)res >> opB;
+    opA = get(mv, opa);
+    opB = get(mv, opb);
+    if (opB <= 0)
+        res = opA;
+    else if (opB >= 32)
+        res = 0;
+    else
+        res = (int)((unsigned int)opA >> opB);     // entran ceros por la izquierda
     carryOverflowShr(opA, opB, &carry, &overflow);
     set(mv, opa, res);
     modCC(mv, res, carry, overflow);
@@ -295,12 +302,17 @@ negativo, el resultado también lo será, porque agrega unos. Si es un número p
 
 void SAR(TMV *mv, int opa, int opb){
     int opA, opB, res, carry, overflow;
-    opA=get(mv, opa);
-    opB=get(mv, opb);
-    res=opA >> opB; // en GCC, correr un int con signo a la derecha ya propaga el bit de signo
+    opA = get(mv, opa);
+    opB = get(mv, opb);
+    if (opB <= 0)
+        res = opA;
+    else if (opB >= 32)
+        res = (opA < 0) ? -1 : 0;                   // queda solo el signo propagado
+    else
+        res = opA >> opB;                           // gcc propaga el bit de signo
     carryOverflowShr(opA, opB, &carry, &overflow);
     set(mv, opa, res);
-    modCC(mv, res, carry, overflow); 
+    modCC(mv, res, carry, overflow);
 }
 
 
