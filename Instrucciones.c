@@ -3,13 +3,111 @@
 #include "Ejecucion.h"
 #include <stdlib.h>
 #include <stdint.h>
+#include <stdio.h>
+#include <string.h>
 #include "Instrucciones.h"
+
+#define SYS_READ  1
+#define SYS_WRITE 2
 
 
 //llamado a sistema
 // 0x1 -> READ, 0x2 -> WRITE
+//segun el formato leo de manera distinta, devuelve valor leido
+static int leerValor(int formato, TMV *mv){
+    int valor = 0;
+    unsigned int aux;          // para hexa y octal
+    unsigned int acum = 0;     // para armar el binario
+    unsigned char c;
+    char bin[33];              // 32 dígitos + '\0'
+    size_t i, largo;
+
+    switch (formato) {
+        case 0x01:
+            scanf("%d", &valor);
+            break;          
+        case 0x08:
+            scanf("%x", &aux);
+            valor = aux;
+            break;
+
+        case 0x04:
+            scanf("%o", &aux);
+            valor = aux;
+            break;
+
+        case 0x02:
+            scanf(" %c", &c);
+            valor = c;
+            break;
+
+        case 0x10:
+            scanf("%32s", bin);
+            largo = strlen(bin);
+            i = 0;
+            while (i < largo && mv->error == 0) { //voy pasando del string a un numero binario, construyo bit a bit
+                if (bin[i] == '0' || bin[i] == '1')
+                    acum = (acum << 1) | (bin[i] - '0'); 
+                else
+                    mv->error = 1;
+                i++;
+            }
+            valor = acum;
+            break;
+    }
+    return valor;
+}
+
+void sysRead(TMV *mv){
+    int dir, cantCeldas, tam, formato;
+    int seg, off, offCelda, dirCelda, dirFis, valor, i;
+
+    dir        = mv->registros[REG_EDX];
+    formato    = mv->registros[REG_EAX] & 0x1F;
+    cantCeldas = mv->registros[REG_ECX] & 0xFFFF;
+    tam        = (mv->registros[REG_ECX] >> 16) & 0xFFFF;
+
+    if (tam < 1 || tam > 4)
+        mv->error = 1;
+    else if (formato == 0 || (formato & (formato - 1)) != 0)
+        mv->error = 1;
+    else {
+        seg = (dir >> 16) & 0xFFFF;
+        off = dir & 0xFFFF;
+        i = 0;
+        while (i < cantCeldas && mv->error == 0) {
+            offCelda = off + i * tam;
+            if (offCelda <= 0xFFFF)
+                dirFis = direc_fisica((seg << 16) | offCelda, mv, tam);
+            else
+                dirFis = -1;
+
+            if (dirFis == -1)
+                mv->error = 3;
+            else {
+                dirCelda = (seg << 16) | offCelda;
+                printf("[%04X]: ", dirFis); //En requerimientos pide esto
+                valor = leerValor(formato, mv);
+                if (mv->error == 0)
+                    escribirMemoria(mv, dirCelda, tam, valor);
+            }
+            i++;
+        }
+    }
+}
+
+// 0x1 -> READ, 0x2 -> WRITE
+
 void SYS(TMV *mv, int opa, int opb){
-    
+    int llamada = get(mv, opa); // según llamada: sysRead(mv) o sysWrite(mv)
+    if (llamada == SYS_READ)
+        sysRead(mv);
+    else
+        if (llamada == SYS_WRITE){
+            //funcion de tizi
+        }
+        else
+            mv->error = 1; //op invalida
 }
 
 //-------SECCION JUMPS--------
