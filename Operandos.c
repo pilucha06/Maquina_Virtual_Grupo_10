@@ -3,7 +3,6 @@
 #include "Operandos.h"
 #include "Ejecucion.h"
 
-
 //FUNCIONES PARTICULARES DE MEMORIA 
 //cito de la especificación:
 /*Cada vez que se realiza una operación en la memoria, se debe cargar en el registro LAR la dirección
@@ -13,38 +12,37 @@ parte baja del registro MAR (los 2 bytes menos significativos). En el registro M
 el cual se está operando, ya sea el valor que se desea almacenar en el caso de una escritura o el que se
 obtuvo después de la lectura. La lectura de la instrucción no debe modificar ninguno de estos registros*/
 
-void leerMemoria(TMV *mv, int direLogica, int *valor){
+void leerMemoria(TMV *mv, int direLogica, int tam, int *valor){
     int i, direFisica;
-    direFisica = direc_fisica(direLogica, mv, 4);
+    direFisica = direc_fisica(direLogica, mv, tam);  
     if (direFisica == -1 )
         mv->error=3;
     else{
         mv->registros[REG_LAR] = direLogica;
-        mv->registros[REG_MAR] = (4<<16) | (direFisica & 0xFFFF);
+        mv->registros[REG_MAR] = (tam<<16) | (direFisica & 0xFFFF);
         //lectura
         *valor = 0; //x las dudas
-        for(i=0; i<4; i++) 
+        for(i=0; i<tam; i++) 
             //voy concatenando 4 veces en "valor" los 8 bits de cada celda en RAM
             *valor = (*valor<<8) | mv->RAM[direFisica + i];
         mv->registros[REG_MBR] = *valor;
     }
 }
 
-void escribirMemoria(TMV *mv, int direLogica, int valor){
+void escribirMemoria(TMV *mv, int direLogica, int tam, int valor){
     int direFisica;
-    direFisica = direc_fisica(direLogica, mv, 4);
+    direFisica = direc_fisica(direLogica, mv, tam);
     if (direFisica == -1 ){
         mv->error=3;
     }
     else{
         mv->registros[REG_LAR] = direLogica;
-        mv->registros[REG_MAR] = (4<<16) | (direFisica & 0xFFFF);
+        mv->registros[REG_MAR] = (tam<<16) | (direFisica & 0xFFFF);
         mv->registros[REG_MBR] = valor;
-        //escribo 4  bytes en RAM
-        mv->RAM[direFisica + 0] = (valor >> 24) & 0xFF;
-        mv->RAM[direFisica + 1] = (valor >> 16) & 0xFF;
-        mv->RAM[direFisica + 2] = (valor >> 8)  & 0xFF;
-        mv->RAM[direFisica + 3] = valor & 0xFF; 
+        //escribo [tam] bytes en RAM
+        for (int j = 0; j < tam; j++) {
+            mv->RAM[direFisica + (tam - 1 - j)] = (valor >> (8 * j)) & 0xFF;
+        }
     }
 }
 
@@ -79,7 +77,7 @@ int getMem(TMV *mv, int op){
     //calculo direccion logica = 2 bytes +s segmento + 2 bytes -s offset
     direLogica = (segmento << 16) | ((offsetPuntero + offset) & 0xFFFF);
     valor = 0;
-    leerMemoria(mv, direLogica, &valor);
+    leerMemoria(mv, direLogica, 4, &valor);
     return valor; 
 }           
 
@@ -99,7 +97,7 @@ void setMem(TMV *mv, int op, int valor){
     offsetPuntero=puntero & 0xFFFF;
     //calculo direccion logica = 2 bytes +s segmento + 2 bytes -s offset
     direLogica = (segmento << 16) | ((offset + offsetPuntero) & 0xFFFF);
-    escribirMemoria(mv, direLogica, valor);
+    escribirMemoria(mv, direLogica, 4, valor);
 }        
 
 //FUNCIONES PPALES 
