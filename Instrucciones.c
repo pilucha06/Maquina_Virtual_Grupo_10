@@ -14,6 +14,9 @@
 //llamado a sistema
 // 0x1 -> READ, 0x2 -> WRITE
 //segun el formato leo de manera distinta, devuelve valor leido
+
+
+//------READ------
 static int leerValor(int formato, TMV *mv){
     int valor = 0;
     unsigned int aux;          // para hexa y octal
@@ -96,6 +99,79 @@ void sysRead(TMV *mv){
     }
 }
 
+//------WRITE--------
+
+void imprimirValor(int formato, int valor) {
+    switch (formato) {
+        case 0x01: // decimal
+            printf("%d\n", valor);
+            break;
+        case 0x02: // caracter / ASCII
+            if (valor >= 32 && valor <= 126)
+                printf("%c\n", (char)valor);
+            else
+                printf(".\n");
+            break;
+        case 0x04: // octal
+            printf("%o\n", valor);
+            break;
+        case 0x08: //hexa
+            printf("%X\n", valor);
+            break;
+        case 0x10: { //binario
+            for (int b = 31; b >= 0; b--) {
+                printf("%d", (valor >> b) & 1);
+            }
+            printf("\n");
+            break;
+        }
+        default:
+            printf("%d\n", valor);
+            break;
+    }
+}
+
+void sysWrite(TMV *mv) {
+    int dir, cantCeldas, tam, formato;
+    int seg, off, offCelda, dirCelda, dirFis, valor, i;
+
+    dir        = mv->registros[REG_EDX];
+    formato    = mv->registros[REG_EAX] & 0x1F;
+    cantCeldas = mv->registros[REG_ECX] & 0xFFFF;
+    tam        = (mv->registros[REG_ECX] >> 16) & 0xFFFF;
+
+    if (tam < 1 || tam > 4 || formato == 0 || (formato & (formato - 1)) != 0) {
+        mv->error = 1; // error de instrucc invalida
+    } else {
+        seg = (dir >> 16) & 0xFFFF;
+        off = dir & 0xFFFF;
+        i = 0;
+        
+        while (i < cantCeldas && mv->error == 0) {
+            offCelda = off + i * tam;
+            if (offCelda <= 0xFFFF)
+                dirFis = direc_fisica((seg << 16) | offCelda, mv, tam);
+            else
+                dirFis = -1;
+
+            if (dirFis == -1) {
+                mv->error = 3; // Fallo de segmento
+            } else {
+                dirCelda = (seg << 16) | offCelda;
+                
+                // leer celda usando leerMemoria de operandos.c
+                leerMemoria(mv, dirCelda, tam, &valor); 
+                
+                if (mv->error == 0) {
+                    printf("[%04X]: ", dirFis); // prompt que exige requerimientos
+                    imprimirValor(formato, valor);
+                }
+            }
+            i++;
+        }
+    }
+}
+
 // 0x1 -> READ, 0x2 -> WRITE
 
 void SYS(TMV *mv, int opa, int opb){
@@ -104,7 +180,7 @@ void SYS(TMV *mv, int opa, int opb){
         sysRead(mv);
     else
         if (llamada == SYS_WRITE){
-            //funcion de tizi
+            sysWrite(mv);
         }
         else
             mv->error = 1; //op invalida
@@ -446,7 +522,7 @@ void LDH(TMV *mv, int opa, int opb){
 void RND(TMV *mv, int opa, int opb){
     int opB, aleatorio;
     opB = get(mv, opb);
-    if (opB > 0)             // <- 0 también es válido
+    if (opB > 0)          
         aleatorio = rand() % (opB + 1);
     else 
         aleatorio=0;
@@ -454,6 +530,8 @@ void RND(TMV *mv, int opa, int opb){
 
     // si opB es negativo, el documento no dice qué hacer
 }
+
+
 instrucciones vecInstr[MAXINSTR] = { SYS, JMP, JP, JN, JZ, JC, JV, JNP, JNN, JNZ, NOT, NULL, NULL, NULL, NULL, STOP, MOV, ADD, SUB, MUL, DIV, CMP, AND, OR, XOR, SWAP, SHL, SHR, SAR, LDL, LDH, RND };
 
 
