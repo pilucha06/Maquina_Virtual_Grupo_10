@@ -4,6 +4,28 @@
 #include "IniciarMV.h"
 #include "Ejecucion.h"   // <-- agregar este include
 
+void mostrarResult(int result){
+    switch (result){
+        case OK:
+            printf("Programa cargado correctamente\n");
+            break;
+        case ERR_ARCH:
+            printf("ERROR: No se pudo abrir o leer el archivo\n");
+            break;
+        case ERR_ID:
+            printf("ERROR: El archivo no es un programa VMX26\n");
+            break;
+        case ERR_VER:
+            printf("ERROR: Version del programa no soportada\n");
+            break;
+        case ERR_TAM_COD:
+            printf("ERROR: El codigo no entra en la memoria\n");
+            break;
+        default:
+            printf("ERROR: Codigo de resultado desconocido (%d)\n", result);
+    }
+}
+
 int main(int argc, char *argv[]){
     TMV MV;
     int i, mostrarDis = 0, result;
