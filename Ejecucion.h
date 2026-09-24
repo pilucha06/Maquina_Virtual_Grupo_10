@@ -16,5 +16,6 @@ void imprimir_instruccion_hex(TMV *MV, int fisica_inicio, int tamanio_total);
 void formatear_operando(int operando, char *buffer);
 void mostrar_desensamblado(TMV *MV, int fisica_ip, int tamanio_total);
 void ejecutar(TMV *MV, int modo_disassembler);
+void mostrarRegistros(TMV *MV);
 
 #endif

@@ -39,7 +39,9 @@ int main(int argc, char *argv[]){
                     if (strcmp(argv[i], "-d") == 0)
                         mostrarDis = 1;
 
+                mostrarRegistros(&MV);
                 ejecutar(&MV, mostrarDis);
+                ostrarRegistros(&MV);
 
                 liberarMV(&MV);
                 return 0;

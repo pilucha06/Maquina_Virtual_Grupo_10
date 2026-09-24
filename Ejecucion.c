@@ -225,4 +225,16 @@ void ejecutar(TMV *MV, int modo_disassembler) {
         case 3: printf("Error: Falla de segmento");
                 break;
     }
+
+    void mostrarRegistros(TMV *MV){
+        int i;
+        printf("\n--- Registros ---\n");
+        for (i = 0; i < CANT_REGS; i++)
+            if (nombres_registros[i] != NULL)
+                printf("%-4s = %08X\n", nombres_registros[i], (unsigned int)MV->registros[i]);
+        printf("--- Tabla de segmentos ---\n");
+        for (i = 0; i < CANT_SEGS; i++)
+            printf("[%d] base = %04X  tam = %04X\n", i,
+                (MV->tablaSegmentos[i] >> 16) & 0xFFFF, MV->tablaSegmentos[i] & 0xFFFF);
+    }
 }
