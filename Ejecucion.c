@@ -212,7 +212,10 @@ void ejecutar(TMV *MV, int modo_disassembler) {
         
         if (MV->registros[REG_OPC] == OPCODE_STOP)
             corriendo = 0;
-        //llamado a las operaciones
+        //llamado a las operaciones'    
+        
+        //Paso 8: ejecuto la instruccion
+        vecInstr[MV->registros[REG_OPC]](MV, MV->registros[REG_OP1], MV->registros[REG_OP2]);
         
     }
     switch (MV->error){
