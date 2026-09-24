@@ -150,82 +150,81 @@ void mostrar_desensamblado(TMV *MV, int fisica_ip, int tamanio_total) {
     else
         printf("\n");
 }
+
 void ejecutar(TMV *MV, int modo_disassembler) {
-    int corriendo = 1;
-    while (corriendo) {
+    int fisica_ip, instruccion, cant_op, tipo_A, tipo_B, tamanio_op, inicio_lec, offset_actual;
 
-        // Paso 1: validar que exista al menos el primer byte de la instrucción
-        int fisica_ip = direc_fisica(MV->registros[REG_IP], MV, 1);
-        if (fisica_ip == -1) {
-            MV->error=3;
-            corriendo = 0;
-            break;
-        }
+    // Paso 1: la ejecucion sigue mientras IP apunte dentro del segmento de codigo
+    fisica_ip = direc_fisica(MV->registros[REG_IP], MV, 1);
+    while (fisica_ip != -1 && MV->error == 0) {
 
-        // Paso 2: distingo la operación y los tipos de operandos
-        int instruccion = MV->RAM[fisica_ip];
-        int cant_op, tipo_A, tipo_B;
+        // Paso 2: distingo la operacion y los tipos de operandos
+        instruccion = MV->RAM[fisica_ip];
         calcula_cant_op(instruccion, &tipo_A, &tipo_B, &cant_op);
+        tamanio_op = tipo_A + tipo_B + 1;
 
-        // Paso 3: valido poder leer la instrucción completa (opcode + operandos)
-        int tamanio_op = tipo_A + tipo_B + 1;
-        if (cant_op != 0) {
-            if (direc_fisica(MV->registros[REG_IP], MV, tamanio_op) == -1) {
-                MV->error=3;
-                corriendo = 0;
-                break;
+        // Paso 3: valido poder leer la instruccion completa (opcode + operandos)
+        if (direc_fisica(MV->registros[REG_IP], MV, tamanio_op) == -1)
+            MV->error = 3;
+        else {
+            // Paso 4: cargo OPC, OP1 y OP2
+            MV->registros[REG_OPC] = instruccion & MASCARA_OPCODE;
+            inicio_lec = fisica_ip + 1;
+            switch (cant_op) {
+                case 1:
+                    MV->registros[REG_OP1] = (tipo_A << BITS_TIPO_OPERANDO) | get_RAM(tipo_A, inicio_lec, MV);
+                    MV->registros[REG_OP2] = 0;
+                    break;
+                case 2:
+                    // se codifican en orden inverso: primero B, despues A
+                    MV->registros[REG_OP2] = (tipo_B << BITS_TIPO_OPERANDO) | get_RAM(tipo_B, inicio_lec, MV);
+                    MV->registros[REG_OP1] = (tipo_A << BITS_TIPO_OPERANDO) | get_RAM(tipo_A, inicio_lec + tipo_B, MV);
+                    break;
+                default:
+                    MV->registros[REG_OP1] = MV->registros[REG_OP2] = 0;
+            }
+
+            // Paso 5: valido que el opcode exista
+            if (vecInstr[MV->registros[REG_OPC]] == NULL)
+                MV->error = 1;
+            else {
+                // Paso 6: si esta activo el modo -d, muestro el desensamblado
+                if (modo_disassembler)
+                    mostrar_desensamblado(MV, fisica_ip, tamanio_op);
+
+                // Paso 7: avanzo el IP ANTES de ejecutar (asi los saltos lo pueden pisar)
+                offset_actual = (MV->registros[REG_IP] & MASCARA_16_BITS) + tamanio_op;
+                MV->registros[REG_IP] = (MV->registros[REG_IP] & ~MASCARA_16_BITS) | (offset_actual & MASCARA_16_BITS);
+
+                // Paso 8: ejecuto la instruccion
+                vecInstr[MV->registros[REG_OPC]](MV, MV->registros[REG_OP1], MV->registros[REG_OP2]);
             }
         }
 
-        // Paso 4: cargo OPC, OP1 y OP2
-        MV->registros[REG_OPC] = instruccion & MASCARA_OPCODE;
-        int inicio_lec = fisica_ip + 1;
-
-        switch (cant_op) {
-            case 1:
-                MV->registros[REG_OP1] = (tipo_A << BITS_TIPO_OPERANDO) | get_RAM(tipo_A, inicio_lec, MV);
-                MV->registros[REG_OP2] = 0;
-                break;
-            case 2:
-                // se codifican en orden inverso: primero B, después A
-                MV->registros[REG_OP2] = (tipo_B << BITS_TIPO_OPERANDO) | get_RAM(tipo_B, inicio_lec, MV);
-                MV->registros[REG_OP1] = (tipo_A << BITS_TIPO_OPERANDO) | get_RAM(tipo_A, inicio_lec + tipo_B, MV);
-                break;
-            default:
-                MV->registros[REG_OP1] = MV->registros[REG_OP2] = 0;
-        }
-        // Paso 4.5: valido que el opcode exista
-        if (nombres_mnemonicos[MV->registros[REG_OPC]] == NULL) {
-            MV->error=1;
-            corriendo = 0;
-            break;
-        }
-        // Paso 5: si está activo el modo -d, muestro el desensamblado
-        if (modo_disassembler) {
-            mostrar_desensamblado(MV, fisica_ip, tamanio_op);
-        }
-
-        // Paso 6: avanzo el IP (solo el offset, preservando el segmento)
-        int offset_actual = MV->registros[REG_IP] & MASCARA_16_BITS;
-        offset_actual += tamanio_op;
-        MV->registros[REG_IP] = (MV->registros[REG_IP] & ~MASCARA_16_BITS) | (offset_actual & MASCARA_16_BITS);
-        
-        if (MV->registros[REG_OPC] == OPCODE_STOP)
-            corriendo = 0;
-        //llamado a las operaciones'    
-        
-        //Paso 8: ejecuto la instruccion
-        vecInstr[MV->registros[REG_OPC]](MV, MV->registros[REG_OP1], MV->registros[REG_OP2]);
-        
+        // Paso 9: busco la proxima instruccion (si hubo error, el while corta igual)
+        fisica_ip = direc_fisica(MV->registros[REG_IP], MV, 1);
     }
+
     switch (MV->error){
-        case 0: printf("Ejecucion exitosa");
+        case 0: printf("Ejecucion exitosa\n");
                 break;
-        case 1: printf("Error: Instruccion invalida");
+        case 1: printf("Error: Instruccion invalida\n");
                 break;
-        case 2: printf("Error: Division por cero");
+        case 2: printf("Error: Division por cero\n");
                 break;
-        case 3: printf("Error: Falla de segmento");
+        case 3: printf("Error: Falla de segmento\n");
                 break;
     }
+}
+
+void mostrarRegistros(TMV *MV){
+    int i;
+    printf("\n--- Registros ---\n");
+    for (i = 0; i < CANT_REGS; i++)
+        if (nombres_registros[i] != NULL)
+            printf("%-4s = %08X\n", nombres_registros[i], (unsigned int)MV->registros[i]);
+    printf("--- Tabla de segmentos ---\n");
+    for (i = 0; i < CANT_SEGS; i++)
+        printf("[%d] base = %04X  tam = %04X\n", i,
+            (MV->tablaSegmentos[i] >> 16) & 0xFFFF, MV->tablaSegmentos[i] & 0xFFFF);
 }
