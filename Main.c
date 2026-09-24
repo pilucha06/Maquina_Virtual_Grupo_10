@@ -4,8 +4,6 @@
 #include "IniciarMV.h"
 #include "Ejecucion.h"   // <-- agregar este include
 
-...
-
 int main(int argc, char *argv[]){
     TMV MV;
     int i, mostrarDis = 0, result;
