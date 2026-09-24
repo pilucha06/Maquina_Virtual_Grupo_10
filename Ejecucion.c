@@ -133,15 +133,16 @@ void formatear_operando(int operando, char *buffer) {
         }
     }
 }
+/*FUNCIONES DESENSAMBLADO*/
 
-void mostrar_desensamblado(TMV *MV, int fisica_ip, int tamanio_total) {
+void mostrar_desensamblado(int fisica_ip, TMV *MV, int opc, int op1, int op2, int tamanio_total) {
     char op_A_str[TAM_BUFFER_TEXTO], op_B_str[TAM_BUFFER_TEXTO];
-    formatear_operando(MV->registros[REG_OP1], op_A_str);
-    formatear_operando(MV->registros[REG_OP2], op_B_str);
+    formatear_operando(op1, op_A_str);
+    formatear_operando(op2, op_B_str);
 
     printf("[%04X] ", fisica_ip);
     imprimir_instruccion_hex(MV, fisica_ip, tamanio_total);
-    printf("| %s", nombres_mnemonicos[MV->registros[REG_OPC]]);
+    printf("| %s", nombres_mnemonicos[opc]);
 
     if (op_A_str[0] != '\0' && op_B_str[0] != '\0')
         printf(" %s, %s\n", op_A_str, op_B_str);
@@ -150,8 +151,42 @@ void mostrar_desensamblado(TMV *MV, int fisica_ip, int tamanio_total) {
     else
         printf("\n");
 }
+void desensamblar(TMV *MV) {
+    int offsetAux = 0;
+    int fisica = direc_fisica((SEG_COD << BITS_SEGMENTO) | offsetAux, MV, 1);
 
-void ejecutar(TMV *MV, int modo_disassembler) {
+    while (fisica != -1) {
+        int instruccion = MV->RAM[fisica];
+        int cant_op, tipo_A, tipo_B;
+        calcula_cant_op(instruccion, &tipo_A, &tipo_B, &cant_op);
+        int tamanio_op = tipo_A + tipo_B + 1;
+
+        if (direc_fisica((SEG_COD << BITS_SEGMENTO) | offsetAux, MV, tamanio_op) == -1)
+            break; // instruccion truncada al final del segmento, no debería pasar en un .vmx bien armado
+
+        int opc = instruccion & MASCARA_OPCODE;
+        int inicio_lec = fisica + 1;
+        int op1 = 0, op2 = 0;
+
+        switch (cant_op) {
+            case 1:
+                op1 = (tipo_A << BITS_TIPO_OPERANDO) | get_RAM(tipo_A, inicio_lec, MV);
+                break;
+            case 2:
+                op2 = (tipo_B << BITS_TIPO_OPERANDO) | get_RAM(tipo_B, inicio_lec, MV);
+                op1 = (tipo_A << BITS_TIPO_OPERANDO) | get_RAM(tipo_A, inicio_lec + tipo_B, MV);
+                break;
+        }
+
+        mostrar_desensamblado(fisica, MV, opc, op1, op2, tamanio_op);
+
+        offsetAux += tamanio_op;
+        fisica = direc_fisica((SEG_COD << BITS_SEGMENTO) | offsetAux, MV, 1);
+    }
+}
+/*FIN DE FUNCIONES DESENSAMBLADO*/
+
+void ejecutar(TMV *MV) {
     int fisica_ip, instruccion, cant_op, tipo_A, tipo_B, tamanio_op, inicio_lec, offset_actual;
 
     // Paso 1: la ejecucion sigue mientras IP apunte dentro del segmento de codigo
@@ -188,15 +223,11 @@ void ejecutar(TMV *MV, int modo_disassembler) {
             if (vecInstr[MV->registros[REG_OPC]] == NULL)
                 MV->error = 1;
             else {
-                // Paso 6: si esta activo el modo -d, muestro el desensamblado
-                if (modo_disassembler)
-                    mostrar_desensamblado(MV, fisica_ip, tamanio_op);
-
-                // Paso 7: avanzo el IP ANTES de ejecutar (asi los saltos lo pueden pisar)
+                // Paso 6: avanzo el IP ANTES de ejecutar (asi los saltos lo pueden pisar)
                 offset_actual = (MV->registros[REG_IP] & MASCARA_16_BITS) + tamanio_op;
                 MV->registros[REG_IP] = (MV->registros[REG_IP] & ~MASCARA_16_BITS) | (offset_actual & MASCARA_16_BITS);
 
-                // Paso 8: ejecuto la instruccion
+                // Paso 7: ejecuto la instruccion
                 vecInstr[MV->registros[REG_OPC]](MV, MV->registros[REG_OP1], MV->registros[REG_OP2]);
             }
         }

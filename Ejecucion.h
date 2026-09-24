@@ -14,8 +14,9 @@ int  get_RAM(int tipo_op, int fisica_ip, TMV *MV);
 int extender_signo_16(int valor16);
 void imprimir_instruccion_hex(TMV *MV, int fisica_inicio, int tamanio_total);
 void formatear_operando(int operando, char *buffer);
-void mostrar_desensamblado(TMV *MV, int fisica_ip, int tamanio_total);
-void ejecutar(TMV *MV, int modo_disassembler);
+void mostrar_desensamblado(int fisica_ip, TMV *MV, int opc, int op1, int op2, int tamanio_total);
+void ejecutar(TMV *MV);
 void mostrarRegistros(TMV *MV);
+void desensamblar(TMV *MV);
 
 #endif

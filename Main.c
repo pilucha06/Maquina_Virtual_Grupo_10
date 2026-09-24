@@ -40,7 +40,9 @@ int main(int argc, char *argv[]){
                         mostrarDis = 1;
 
                 mostrarRegistros(&MV);
-                ejecutar(&MV, mostrarDis);
+                if (mostrarDis)
+                    desensamblar(&MV);
+                ejecutar(&MV);
                 mostrarRegistros(&MV);
 
                 liberarMV(&MV);
