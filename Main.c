@@ -41,7 +41,7 @@ int main(int argc, char *argv[]){
 
                 mostrarRegistros(&MV);
                 ejecutar(&MV, mostrarDis);
-                ostrarRegistros(&MV);
+                mostrarRegistros(&MV);
 
                 liberarMV(&MV);
                 return 0;
