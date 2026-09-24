@@ -216,11 +216,11 @@ void ejecutar(TMV *MV, int modo_disassembler) {
         
     }
     switch (MV->error){
-        case 0: printf("Ejecución exitosa");
+        case 0: printf("Ejecucion exitosa");
                 break;
-        case 1: printf("Error: Instrucción invalida");
+        case 1: printf("Error: Instruccion invalida");
                 break;
-        case 2: printf("Error: División por cero");
+        case 2: printf("Error: Division por cero");
                 break;
         case 3: printf("Error: Falla de segmento");
                 break;
