@@ -38,12 +38,9 @@ int main(int argc, char *argv[]){
                 for (i = 2; i < argc; i++)
                     if (strcmp(argv[i], "-d") == 0)
                         mostrarDis = 1;
-
-                mostrarRegistros(&MV);
                 if (mostrarDis)
                     desensamblar(&MV);
                 ejecutar(&MV);
-                mostrarRegistros(&MV);
 
                 liberarMV(&MV);
                 return 0;
