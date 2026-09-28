@@ -1,3 +1,4 @@
+
 #include "MV.h"
 #include "Operandos.h"
 #include "Ejecucion.h"
@@ -6,16 +7,16 @@
 #include <stdio.h>
 #include <string.h>
 #include "Instrucciones.h"
-
+ 
 #define SYS_READ  1
 #define SYS_WRITE 2
-
-
+ 
+ 
 //llamado a sistema
 // 0x1 -> READ, 0x2 -> WRITE
 //segun el formato leo de manera distinta, devuelve valor leido
-
-
+ 
+ 
 //------READ------
 static int leerValor(int formato, TMV *mv){
     int valor = 0;
@@ -24,7 +25,7 @@ static int leerValor(int formato, TMV *mv){
     unsigned char c;
     char bin[33];              // 32 dígitos + '\0'
     size_t i, largo;
-
+ 
     switch (formato) {
         case 0x01:
             scanf("%d", &valor);
@@ -33,17 +34,17 @@ static int leerValor(int formato, TMV *mv){
             scanf("%x", &aux);
             valor = aux;
             break;
-
+ 
         case 0x04:
             scanf("%o", &aux);
             valor = aux;
             break;
-
+ 
         case 0x02:
             scanf(" %c", &c);
             valor = c;
             break;
-
+ 
         case 0x10:
             scanf("%32s", bin);
             largo = strlen(bin);
@@ -60,16 +61,16 @@ static int leerValor(int formato, TMV *mv){
     }
     return valor;
 }
-
+ 
 void sysRead(TMV *mv){
     int dir, cantCeldas, tam, formato;
     int seg, off, offCelda, dirCelda, dirFis, valor, i;
-
+ 
     dir        = mv->registros[REG_EDX];
     formato    = mv->registros[REG_EAX] & 0x1F;
     cantCeldas = mv->registros[REG_ECX] & 0xFFFF;
     tam        = (mv->registros[REG_ECX] >> 16) & 0xFFFF;
-
+ 
     if (tam < 1 || tam > 4)
         mv->error = 1;
     else if (formato == 0 || (formato & (formato - 1)) != 0)
@@ -84,7 +85,7 @@ void sysRead(TMV *mv){
                 dirFis = direc_fisica((seg << 16) | offCelda, mv, tam);
             else
                 dirFis = -1;
-
+ 
             if (dirFis == -1)
                 mv->error = 3;
             else {
@@ -98,149 +99,166 @@ void sysRead(TMV *mv){
         }
     }
 }
-
+ 
 //------WRITE--------
-
-void imprimirValor(int formato, int valor) {
-    switch (formato) {
-        case 0x01: // decimal
-            printf("%d\n", valor);
-            break;
-        case 0x02: // caracter / ASCII
-            if (valor >= 32 && valor <= 126)
-                printf("%c\n", (char)valor);
-            else
-                printf(".\n");
-            break;
-        case 0x04: // octal
-            printf("%o\n", valor);
-            break;
-        case 0x08: //hexa
-            printf("%X\n", valor);
-            break;
-        case 0x10: { //binario
-            for (int b = 31; b >= 0; b--) {
-                printf("%d", (valor >> b) & 1);
-            }
-            printf("\n");
-            break;
-        }
-        default:
-            printf("%d\n", valor);
-            break;
+ 
+void imprimirBinario(unsigned int valor) {
+    int b = 31;
+    while (b > 0 && ((valor >> b) & 1) == 0)   // salteo los ceros de adelante
+        b--;
+    printf("0b");
+    while (b >= 0) {
+        printf("%u", (valor >> b) & 1);
+        b--;
     }
 }
-
+ 
+/* imprime una celda de "tam" bytes en todos los formatos prendidos en "formato",
+   del bit mas alto al mas bajo, separados por un espacio */
+void imprimirValor(int formato, int valor, int tam) {
+    unsigned int sinSigno;
+    int conSigno, bits, primero = 1;
+ 
+    bits = tam * 8;
+    if (tam < 4)
+        sinSigno = (unsigned int)valor & ((1u << bits) - 1);  // me quedo solo con los bytes de la celda
+    else
+        sinSigno = (unsigned int)valor;
+    conSigno = (int)(sinSigno << (32 - bits)) >> (32 - bits); // extiendo el signo segun el tamanio
+ 
+    if (formato & 0x10) {           // binario
+        imprimirBinario(sinSigno);
+        primero = 0;
+    }
+    if (formato & 0x08) {           // hexadecimal
+        if (!primero) printf(" ");
+        printf("0x%X", sinSigno);
+        primero = 0;
+    }
+    if (formato & 0x04) {           // octal
+        if (!primero) printf(" ");
+        printf("0o%o", sinSigno);
+        primero = 0;
+    }
+    if (formato & 0x02) {           // caracter
+        if (!primero) printf(" ");
+        if (sinSigno >= 32 && sinSigno <= 126)
+            printf("%c", (char)sinSigno);
+        else
+            printf(".");
+        primero = 0;
+    }
+    if (formato & 0x01) {           // decimal
+        if (!primero) printf(" ");
+        printf("%d", conSigno);
+    }
+    printf("\n");
+}
+ 
 void sysWrite(TMV *mv) {
     int dir, cantCeldas, tam, formato;
     int seg, off, offCelda, dirCelda, dirFis, valor, i;
-
+ 
     dir        = mv->registros[REG_EDX];
     formato    = mv->registros[REG_EAX] & 0x1F;
     cantCeldas = mv->registros[REG_ECX] & 0xFFFF;
     tam        = (mv->registros[REG_ECX] >> 16) & 0xFFFF;
-
-    if (tam < 1 || tam > 4 || formato == 0 || (formato & (formato - 1)) != 0) {
+ 
+    if (tam < 1 || tam > 4 || formato == 0) {
         mv->error = 1; // error de instrucc invalida
     } else {
         seg = (dir >> 16) & 0xFFFF;
         off = dir & 0xFFFF;
         i = 0;
-        
+ 
         while (i < cantCeldas && mv->error == 0) {
             offCelda = off + i * tam;
             if (offCelda <= 0xFFFF)
                 dirFis = direc_fisica((seg << 16) | offCelda, mv, tam);
             else
                 dirFis = -1;
-
+ 
             if (dirFis == -1) {
                 mv->error = 3; // Fallo de segmento
             } else {
                 dirCelda = (seg << 16) | offCelda;
-                
-                // leer celda usando leerMemoria de operandos.c
-                leerMemoria(mv, dirCelda, tam, &valor); 
-                
+                leerMemoria(mv, dirCelda, tam, &valor);
                 if (mv->error == 0) {
                     printf("[%04X]: ", dirFis); // prompt que exige requerimientos
-                    imprimirValor(formato, valor);
+                    imprimirValor(formato, valor, tam);
                 }
             }
             i++;
         }
     }
 }
-
+ 
 // 0x1 -> READ, 0x2 -> WRITE
-
+ 
 void SYS(TMV *mv, int opa, int opb){
-    int llamada = get(mv, opa); // según llamada: sysRead(mv) o sysWrite(mv)
+    int llamada = get(mv, opa);
     if (llamada == SYS_READ)
         sysRead(mv);
-    else
-        if (llamada == SYS_WRITE){
-            sysWrite(mv);
-        }
-        else
-            mv->error = 1; //op invalida
+    else if (llamada == SYS_WRITE)
+        sysWrite(mv);
+    // cualquier otro numero de llamada: no hace nada
 }
-
+ 
 //-------SECCION JUMPS--------
 // BITS CC (4 bits más significativos): [N] [Z] [C] [V]
-
+ 
 void salto(TMV *mv, int opa){
     int inicioCS, opA;
     inicioCS=(mv->registros[REG_CS]) & 0xFFFF0000;
     opA= get(mv, opa);
     mv->registros[REG_IP]=inicioCS | (opA & 0xFFFF);
 }
-
-
+ 
+ 
 void JMP(TMV *mv, int opa, int opb){ //salta siempre
     salto(mv, opa);
 }
-
+ 
 void JP(TMV *mv, int opa, int opb){ //salta cuando es positivo
     if (!((mv->registros[REG_CC] >> 28) & 0xC)) //masc=1100 tiene q dar 0
         salto(mv, opa);
 }
-
+ 
 void JN(TMV *mv, int opa, int opb){ //salta cuando es negativo
     if ((mv->registros[REG_CC] >> 28) & 0x8) //masc=1000 tiene q dar 1
         salto(mv, opa);
 }
-
+ 
 void JZ(TMV *mv, int opa, int opb){ //salta cuando es cero
     if ((mv->registros[REG_CC] >> 28) & 0x4) //masc=0100 tiene q dar 1
         salto(mv, opa);
 }
-
+ 
 void JC(TMV *mv, int opa, int opb){ //salta cuando hay carry
     if ((mv->registros[REG_CC] >> 28) & 0x2) //masc=0010 tiene q dar 1
         salto(mv, opa);
 }
-
+ 
 void JV(TMV *mv, int opa, int opb){ //salta cuando hay overflow
     if ((mv->registros[REG_CC] >> 28) & 0x1) //masc=0001 tiene q dar 1
         salto(mv, opa);
 }
-
+ 
 void JNP(TMV *mv, int opa, int opb){ //salta cuando es negativo o cero
     if ((mv->registros[REG_CC] >> 28) & 0xC) //masc=1100 tiene q dar 1
         salto(mv, opa);
 }
-
+ 
 void JNN(TMV *mv, int opa, int opb){ //salta cuando es positivo o cero
     if (!((mv->registros[REG_CC] >> 28) & 0x8)) //masc=1000 tiene q dar 0, no es negativo
         salto(mv, opa);
 }
-
+ 
 void JNZ(TMV *mv, int opa, int opb){ //salta cuando es positivo o negativo
     if (!((mv->registros[REG_CC] >> 28) & 0x4)) //masc=0100 tiene q dar 0, no es zero
         salto(mv, opa);
 }
-
+ 
 // Arma el registro CC completo a partir del resultado y de carry/overflow
 // ya calculados por la operación que llama (cada familia de instrucciones
 // calcula carry/overflow distinto, ver funciones auxiliares mas abajo).
@@ -256,7 +274,7 @@ void modCC(TMV *mv, int valor, int carry, int overflow){
         cc |= (1 << 28); // V
     mv->registros[REG_CC] = cc;
 }
-
+ 
 // Funciones auxiliares de carry/overflow
 // Para ADD/SUB: suma o resta con signo de 32 bits
 void carryOverflowSuma(int opA, int opB, int res, int *carry, int *overflow){
@@ -265,14 +283,14 @@ void carryOverflowSuma(int opA, int opB, int res, int *carry, int *overflow){
     *overflow = ((opA >= 0 && opB >= 0 && res < 0) || (opA < 0  && opB < 0  && res >= 0));
     // 2 neg = pos | 2 pos = neg|0 (regla de overflow en suma)
 }
-
+ 
 void carryOverflowResta(int opA, int opB, int res, int *carry, int *overflow){
     // resta como la hace el hardware: opA + ~opB + 1
     unsigned long long suma64 = (unsigned long long)(unsigned int)opA + (unsigned int)~opB + 1;
     *carry = (suma64 >> 32) & 1;
     *overflow = ((opA < 0) != (opB < 0)) && ((res < 0) != (opA < 0));
 }
-
+ 
 // Para MUL
 void carryOverflowMul(int opA, int opB, int *carry, int *overflow){
     long long prod64 = (long long)opA * (long long)opB;
@@ -280,7 +298,7 @@ void carryOverflowMul(int opA, int opB, int *carry, int *overflow){
     // Calculamos el carry como producto sin signo para ver si excede 32 bits
     *carry = (((unsigned long long)(unsigned int)opA * (unsigned int)opB) >> 32) != 0;
 }
-
+ 
 // Para SHL: bits que se "caen" por la izquierda
 void carryOverflowShl(int opA, int cant, int *carry, int *overflow){
     unsigned int bits_perdidos;
@@ -299,7 +317,7 @@ void carryOverflowShl(int opA, int cant, int *carry, int *overflow){
         *overflow = (top != 0 && top != -1);
     }
 }
-
+ 
 // Para SHR/SAR: bits que se "caen" por la derecha (mismo criterio para ambas)
 void carryOverflowShr(int opA, int cant, int *carry, int *overflow){
     unsigned int bits_perdidos;
@@ -313,7 +331,7 @@ void carryOverflowShr(int opA, int cant, int *carry, int *overflow){
     }
     *overflow = 0;
 }
-
+ 
 void NOT(TMV *mv, int opa, int opb){ //solamente invertir bits y actualiza reg CC
     int opA, res;
     opA= get(mv, opa);
@@ -321,18 +339,18 @@ void NOT(TMV *mv, int opa, int opb){ //solamente invertir bits y actualiza reg C
     set(mv, opa, res);
     modCC(mv, res, 0, 0);
 }
-
+ 
 void STOP(TMV *mv, int opa, int opb){
     mv->registros[REG_IP]=-1;
 }
-
+ 
 void MOV(TMV *mv, int opa, int opb){
     int opB;
     opB=get(mv, opb);
     set(mv, opa, opB);
     modCC(mv, opB, 0, 0);
 }
-
+ 
 void ADD(TMV *mv, int opa, int opb){
     int opA, opB, res, carry, overflow;
     opA=get(mv, opa);
@@ -342,7 +360,7 @@ void ADD(TMV *mv, int opa, int opb){
     set(mv, opa, res); 
     modCC(mv, res, carry, overflow);
 }
-
+ 
 void SUB(TMV *mv, int opa, int opb){
     int opA, opB, res, carry, overflow;
     opA=get(mv, opa);
@@ -391,10 +409,10 @@ void CMP(TMV *mv, int opa, int opb){
     carryOverflowResta(opA, opB, res, &carry, &overflow);
     modCC(mv, res, carry, overflow); 
 }
-
+ 
 /*AND, OR, XOR: efectúan las operaciones lógicas básicas bit a bit entre los operandos y afectan al
 registro CC. El resultado se almacena en el primer operando.*/
-
+ 
 void AND(TMV *mv, int opa, int opb){
     int opA, opB, res;
     opA=get(mv, opa);
@@ -403,7 +421,7 @@ void AND(TMV *mv, int opa, int opb){
     set(mv, opa, res);
     modCC(mv, res, 0, 0); // logica: sin carry ni overflow
 }
-
+ 
 void OR(TMV *mv, int opa, int opb){
     int opA, opB, res;
     opA=get(mv, opa);
@@ -412,7 +430,7 @@ void OR(TMV *mv, int opa, int opb){
     set(mv, opa, res);
     modCC(mv, res, 0, 0);
 }
-
+ 
 void XOR(TMV *mv, int opa, int opb){
     int opA, opB, res;
     opA=get(mv, opa);
@@ -421,25 +439,25 @@ void XOR(TMV *mv, int opa, int opb){
     set(mv, opa, res);
     modCC(mv, res, 0, 0);
 }
-
+ 
 /*SWAP: intercambia los valores de los operandos (ambos deben ser registros y/o celdas de memoria).
 Equivale a realizar las siguientes operaciones:
 XOR OPN_A, OPN_B
 XOR OPN_B, OPN_A
 XOR OPN_A, OPN_B
 Por lo tanto, afecta al registro CC del mismo modo que el último XOR.*/
-
+ 
 void SWAP(TMV *mv, int opa, int opb){
     XOR(mv, opa, opb);
     XOR(mv, opb, opa);
     XOR(mv, opa, opb);
 }
-
+ 
 /*SHL, SHR, SAR: realizan desplazamientos de los bits almacenados en un registro o una posición de
 memoria y afectan al registro CC. SHL y SHR efectuan corrimientos a la izquierda y a la derecha
 (respectivamente) y los bits que quedan libres se completan con ceros. */
-
-
+ 
+ 
 void SHL(TMV *mv, int opa, int opb){
     int opA, opB, res, carry, overflow;
     opA = get(mv, opa);
@@ -454,7 +472,7 @@ void SHL(TMV *mv, int opa, int opb){
     set(mv, opa, res);
     modCC(mv, res, carry, overflow);
 }
-
+ 
 void SHR(TMV *mv, int opa, int opb){
     int opA, opB, res, carry, overflow;
     opA = get(mv, opa);
@@ -469,11 +487,11 @@ void SHR(TMV *mv, int opa, int opb){
     set(mv, opa, res);
     modCC(mv, res, carry, overflow);
 }
-
+ 
 /*SAR también desplaza a la
 derecha, pero los bits de la izquierda propagan el bit anterior. Es decir, si el contenido es un número
 negativo, el resultado también lo será, porque agrega unos. Si es un número positivo, agrega ceros.*/
-
+ 
 void SAR(TMV *mv, int opa, int opb){
     int opA, opB, res, carry, overflow;
     opA = get(mv, opa);
@@ -488,12 +506,12 @@ void SAR(TMV *mv, int opa, int opb){
     set(mv, opa, res);
     modCC(mv, res, carry, overflow);
 }
-
-
+ 
+ 
 /*LDL: carga los 2 bytes menos significativos del primer operando, con los 2 bytes menos significativos
 del segundo operando. Esta instrucción está especialmente pensada para poder cargar un inmediato de
 16 bits, aunque también se puede utilizar con otro tipo de operando.*/
-
+ 
 void LDL(TMV *mv, int opa, int opb){
     int opA, opB, res;
     opA=get(mv, opa);
@@ -502,11 +520,11 @@ void LDL(TMV *mv, int opa, int opb){
     //no modifica cc
     set(mv, opa, res);
 }
-
+ 
 /*LDH: carga los 2 bytes más significativos del primer operando, con los 2 bytes menos significativos del
 segundo operando. Esta instrucción está especialmente pensada para poder cargar un inmediato de 16
 bits, aunque también se puede utilizar con otro tipo de operando.*/
-
+ 
 void LDH(TMV *mv, int opa, int opb){
     int opA, opB, res;
     opA=get(mv, opa);
@@ -515,9 +533,9 @@ void LDH(TMV *mv, int opa, int opb){
     //no modifica cc
     set(mv, opa, res);
 }
-
+ 
 /*RND: carga en el primer operando un número aleatorio entre 0 y el valor del segundo operando*/
-
+ 
 //random esta en stdlib!
 void RND(TMV *mv, int opa, int opb){
     int opB, aleatorio;
@@ -527,13 +545,14 @@ void RND(TMV *mv, int opa, int opb){
     else 
         aleatorio=0;
     set(mv, opa, aleatorio);
-
+ 
     // si opB es negativo, el documento no dice qué hacer
 }
-
-
+ 
+ 
 instrucciones vecInstr[MAXINSTR] = { SYS, JMP, JP, JN, JZ, JC, JV, JNP, JNN, JNZ, NOT, NULL, NULL, NULL, NULL, STOP, MOV, ADD, SUB, MUL, DIV, CMP, AND, OR, XOR, SWAP, SHL, SHR, SAR, LDL, LDH, RND };
-
-
-
-
+ 
+ 
+ 
+ 
+ 
