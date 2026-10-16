@@ -3,7 +3,7 @@
 
 #include "MV.h"
 
-int reservoEspacioMV(TMV *MV);
+int reservoEspacioMV(TMV *MV, unsigned int tamRam);
 int inicializoMV(TMV *MV, char nomArch[]);
 void liberarMV(TMV *MV);
 

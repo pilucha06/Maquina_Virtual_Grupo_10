@@ -150,37 +150,42 @@ void mostrar_desensamblado(int fisica_ip, TMV *MV, int opc, int op1, int op2, in
     else
         printf("\n");
 }
+
 void desensamblar(TMV *MV) {
+    int inicioCS = MV->registros[REG_CS] & 0xFFFF0000;   // parte alta de CS: índice del segmento de código
     int offsetAux = 0;
-    int fisica = direc_fisica((SEG_COD << BITS_SEGMENTO) | offsetAux, MV, 1);
+    int fisica = direc_fisica(inicioCS | offsetAux, MV, 1);
+    int instruccion, cant_op, tipo_A, tipo_B, tamanio_op;
+    int opc, inicio_lec, op1, op2;
 
     while (fisica != -1) {
-        int instruccion = MV->RAM[fisica];
-        int cant_op, tipo_A, tipo_B;
+        instruccion = MV->RAM[fisica];
         calcula_cant_op(instruccion, &tipo_A, &tipo_B, &cant_op);
-        int tamanio_op = tipo_A + tipo_B + 1;
+        tamanio_op = tipo_A + tipo_B + 1;
 
-        if (direc_fisica((SEG_COD << BITS_SEGMENTO) | offsetAux, MV, tamanio_op) == -1)
-            break; // instruccion truncada al final del segmento, no debería pasar en un .vmx bien armado
+        if (direc_fisica(inicioCS | offsetAux, MV, tamanio_op) == -1)
+            fisica = -1; // instruccion truncada al final del segmento: corta el ciclo
+        else {
+            opc = instruccion & MASCARA_OPCODE;
+            inicio_lec = fisica + 1;
+            op1 = 0;
+            op2 = 0;
 
-        int opc = instruccion & MASCARA_OPCODE;
-        int inicio_lec = fisica + 1;
-        int op1 = 0, op2 = 0;
+            switch (cant_op) {
+                case 1:
+                    op1 = (tipo_A << BITS_TIPO_OPERANDO) | get_RAM(tipo_A, inicio_lec, MV);
+                    break;
+                case 2:
+                    op2 = (tipo_B << BITS_TIPO_OPERANDO) | get_RAM(tipo_B, inicio_lec, MV);
+                    op1 = (tipo_A << BITS_TIPO_OPERANDO) | get_RAM(tipo_A, inicio_lec + tipo_B, MV);
+                    break;
+            }
 
-        switch (cant_op) {
-            case 1:
-                op1 = (tipo_A << BITS_TIPO_OPERANDO) | get_RAM(tipo_A, inicio_lec, MV);
-                break;
-            case 2:
-                op2 = (tipo_B << BITS_TIPO_OPERANDO) | get_RAM(tipo_B, inicio_lec, MV);
-                op1 = (tipo_A << BITS_TIPO_OPERANDO) | get_RAM(tipo_A, inicio_lec + tipo_B, MV);
-                break;
+            mostrar_desensamblado(fisica, MV, opc, op1, op2, tamanio_op);
+
+            offsetAux += tamanio_op;
+            fisica = direc_fisica(inicioCS | offsetAux, MV, 1);
         }
-
-        mostrar_desensamblado(fisica, MV, opc, op1, op2, tamanio_op);
-
-        offsetAux += tamanio_op;
-        fisica = direc_fisica((SEG_COD << BITS_SEGMENTO) | offsetAux, MV, 1);
     }
 }
 /*FIN DE FUNCIONES DESENSAMBLADO*/
@@ -243,6 +248,10 @@ void ejecutar(TMV *MV) {
         case 2: printf("Error: Division por cero\n");
                 break;
         case 3: printf("Error: Falla de segmento\n");
+                break;
+        case 4: printf("Error: Stack Overflow\n");
+                break;
+        case 5: printf("Error: Stack Underflow\n");
                 break;
     }
 }

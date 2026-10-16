@@ -3,8 +3,13 @@
 #include <stdio.h>
 #include "IniciarMV.h"
 
-int reservoEspacioMV(TMV *MV){
-    MV->RAM = calloc(TAM_RAM, sizeof(unsigned char)); //reserva 16384 bytes en el heap todos en 0 y devuelve puntero a 1er posicion
+// En la v1 la tabla es fija: codigo en la entrada 0 y datos en la 1
+#define V1_IDX_COD 0
+#define V1_IDX_DAT 1
+
+int reservoEspacioMV(TMV *MV, unsigned int tamRam){
+    MV->tam_ram = tamRam;
+    MV->RAM = calloc(tamRam, sizeof(unsigned char)); //reserva tamRam bytes en el heap, todos en 0
     if(MV->RAM == NULL)
         return 0;
 
@@ -38,30 +43,32 @@ int inicializoMV(TMV *MV, char nomArch[]){
     size_t num; //verificador de que los reads den bien
     int i, baseCod = 0;
     unsigned short tamCod;
+    char id[TAM_ID + 1];
+    unsigned char version;
 
     arch = fopen(nomArch, "rb");
     if (arch == NULL)
         return ERR_ARCH;
 
     //LEO ID
-    num = fread(MV->id, sizeof(char), TAM_ID, arch);
-    MV->id[TAM_ID] = '\0'; //pongo fin de string
+    num = fread(id, sizeof(char), TAM_ID, arch);
+    id[TAM_ID] = '\0'; //pongo fin de string
     if (num < TAM_ID){
         fclose(arch);
         return ERR_ARCH;
     }
-    else if (strcmp(MV->id, ID_MV) != 0){
+    else if (strcmp(id, ID_MV) != 0){
             fclose(arch);
             return ERR_ID;
          }
     
     //LEO VERSION
-    num = fread(&MV->version, sizeof(char), 1, arch);
+    num = fread(&version, sizeof(char), 1, arch);
     if (num < 1){
         fclose(arch);
         return ERR_ARCH;
     }
-    else if(MV->version != VER_MV){
+    else if(version != VER_1){ // PENDIENTE: aceptar VER_2 cuando este la carga v2
             fclose(arch);
             return ERR_VER;
          }
@@ -74,21 +81,25 @@ int inicializoMV(TMV *MV, char nomArch[]){
     }
     else{
         tamCod = (aux[0] << 8) | aux[1];
-        if (tamCod > TAM_RAM){
+        if (tamCod > MV->tam_ram){
             fclose(arch);
             return ERR_TAM_COD;
         }
     }
 
     //TABLA DE SEGMENTOS
-    MV->tablaSegmentos[SEG_COD] = armarEntrada(baseCod, tamCod);
-    MV->tablaSegmentos[SEG_DAT] = armarEntrada(baseCod + tamCod, TAM_RAM - tamCod);
+    MV->tablaSegmentos[V1_IDX_COD] = armarEntrada(baseCod, tamCod);
+    MV->tablaSegmentos[V1_IDX_DAT] = armarEntrada(baseCod + tamCod, MV->tam_ram - tamCod);
     for (i = 2; i < CANT_SEGS; i++)
         MV->tablaSegmentos[i] = ENTRADA_LIBRE;
 
     //REGISTROS
-    MV->registros[REG_CS] = armarPunteroLogico(SEG_COD, 0);
-    MV->registros[REG_DS] = armarPunteroLogico(SEG_DAT, 0);
+    MV->registros[REG_CS] = armarPunteroLogico(V1_IDX_COD, 0);
+    MV->registros[REG_DS] = armarPunteroLogico(V1_IDX_DAT, 0);
+    MV->registros[REG_ES] = -1;   // segmentos que no existen en la v1
+    MV->registros[REG_SS] = -1;
+    MV->registros[REG_KS] = -1;
+    MV->registros[REG_PS] = -1;
     MV->registros[REG_IP] = MV->registros[REG_CS];
 
     num = fread(MV->RAM + baseCod, sizeof(char), tamCod, arch);

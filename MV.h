@@ -35,8 +35,12 @@ typedef struct {
     unsigned int  tam_ram;          // tamaño de la memoria EN BYTES (default TAM_RAM_DEFAULT o m=M * 1024)
     int           *registros;       // vector de 32 registros de 4 bytes
     unsigned int  *tablaSegmentos;  // 8 entradas: 2 bytes base + 2 bytes tamaño
-    short int     error;            // PENDIENTE: pasa a ser el enum de errores
+    short int     error;            
 } TMV;
+
+// error de ejecucion: 0 ok, 1 instr invalida, 
+//2 div cero, 3 segmento, 
+//4 stack overflow, 5 stack underflow
 
 //UTILIDADES PARA ARMAR Y LEER VALORES EMPAQUETADOS
 unsigned int armarEntrada(unsigned short base, unsigned short tam);
