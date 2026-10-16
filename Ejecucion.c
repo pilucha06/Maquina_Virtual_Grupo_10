@@ -47,18 +47,17 @@ const char *nombres_mnemonicos[CANT_REGS] = {
 int direc_fisica(int direc_logica, TMV *MV, int cant_bytes) {
     int seg        = (direc_logica >> BITS_SEGMENTO) & MASCARA_16_BITS;
     int offset_raw = direc_logica & MASCARA_16_BITS;
-    int offset     = extender_signo_16(offset_raw);   // reinterpreto el offset con signo (por si es negativo = invalido)
-
-    if (seg < 0 || seg >= CANT_SEGS || MV->tablaSegmentos[seg] == ENTRADA_LIBRE)
+   
+    if (seg >= CANT_SEGS || MV->tablaSegmentos[seg] == ENTRADA_LIBRE)
         return -1; // índice inválido en la tabla o entrada no usada
 
     int base        = (MV->tablaSegmentos[seg] >> BITS_SEGMENTO) & MASCARA_16_BITS;
     int tamanio_seg = MV->tablaSegmentos[seg] & MASCARA_16_BITS;
 
-    if (offset < 0 || offset + cant_bytes > tamanio_seg)
-        return -1; // se cae del segmento (por abajo o por arriba)
+    if (offset_raw + cant_bytes > tamanio_seg)
+        return -1; // se cae del segmento (por arriba)
 
-    return base + offset;
+    return base + offset_raw;
 }
 
 /* calcula_cant_op: a partir del primer byte de la instrucción, decide si es de
