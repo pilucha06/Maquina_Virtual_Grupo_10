@@ -1,17 +1,12 @@
 #ifndef MV_H
 #define MV_H
 
-#define TAM_RAM 16384
+#define TAM_RAM_DEFAULT 16384
 #define CANT_REGS 32
 #define CANT_SEGS 8
 #define ENTRADA_LIBRE 0xFFFFFFFF
 #define ID_MV  "VMX26"
 #define TAM_ID 5
-#define VER_MV 1
-
-//SEGMENTOS DEFINIDOS DE LA TABLA PARA CS Y DS
-#define SEG_COD 0
-#define SEG_DAT 1
 
 //CONST DE ERRORES Y SUS TIPOS EN INICIALIZACION
 #define OK 0
@@ -20,24 +15,27 @@
 #define ERR_VER 3
 #define ERR_TAM_COD 4
 
+typedef enum {
+    VER_1 = 1, VER_2 = 2
+} VersionesMV;
+
 //ENUMERACION DE REGISTROS
 typedef enum {
-    REG_IP = 0, REG_OPC, REG_OP1, REG_OP2, 
+    REG_IP = 0, REG_OPC, REG_OP1, REG_OP2,
     REG_LAR, REG_MAR, REG_MBR,
+    REG_SP = 7, REG_BP = 8,
     REG_EAX = 10, REG_EBX, REG_ECX, REG_EDX, REG_EEX, REG_EFX,
     REG_AC = 16, REG_CC,
-    REG_CS = 26, REG_DS 
+    REG_CS = 26, REG_DS, REG_ES, REG_SS, REG_KS, REG_PS
 } CodigoRegistro;
 
 //STRUCT - DEFINICION DE LA MAQUINA VIRTUAL
 typedef struct {
-    unsigned char  *RAM;          // 16384 celdas de 1 byte
-    int  *registros;        // vector de 32 registros de 4 bytes
-    unsigned int *tablaSegmentos;   // 8 entradas, 2 bytes base + 2 bytes tamaño
-
-    char     id[TAM_ID + 1];  // "VMX26" + '\0'
-    unsigned char  version;
-    short int error; //1,2,3(ninguno, instrucción invalida, división por cero, falla de segmento)
+    unsigned char *RAM;             // memoria principal, celdas de 1 byte
+    unsigned int  tam_ram;          // tamaño de la memoria EN BYTES (default TAM_RAM_DEFAULT o m=M * 1024)
+    int           *registros;       // vector de 32 registros de 4 bytes
+    unsigned int  *tablaSegmentos;  // 8 entradas: 2 bytes base + 2 bytes tamaño
+    short int     error;            // PENDIENTE: pasa a ser el enum de errores
 } TMV;
 
 //UTILIDADES PARA ARMAR Y LEER VALORES EMPAQUETADOS
