@@ -8,15 +8,13 @@
 #include <string.h>
 #include "Instrucciones.h"
  
-#define SYS_READ  1
-#define SYS_WRITE 2
+#define SYS_CLR   0  // limpiar pantalla
+#define SYS_READ  1  // leer valores formateados 
+#define SYS_WRITE 2  // escribir "
+#define SYS_RSTR  3  // leer string
+#define SYS_WSTR  4  // escribir "
  
- 
-//llamado a sistema
-// 0x1 -> READ, 0x2 -> WRITE
-//segun el formato leo de manera distinta, devuelve valor leido
- 
- 
+
 //------READ------
 static int leerValor(int formato, TMV *mv){
     int valor = 0;
@@ -192,16 +190,78 @@ void sysWrite(TMV *mv) {
         }
     }
 }
+
+void sysReadString(TMV *mv) {
+    int dirDestino, maxChars, c, i;
+    dirDestino = mv->registros[REG_EDX];
+    maxChars = mv->registros[REG_ECX];
+    i = 0;
+    c = getchar();
+
+    //mientras: no sea fin de línea \n o eof, mv->error == 0 y no hayamos alcanzado el max de caracteres 
+    while (c != '\n' && c != EOF && mv->error == 0 && (maxChars == -1 || i < maxChars)) {
+        escribirMemoria(mv, dirDestino + i, 1, c);
+        i++;
+        // si no alcanzamos el limite -> otro pido caract
+        if (mv->error == 0 && (maxChars == -1 || i < maxChars))
+            c = getchar();
+    }
+    //caracter nulo \0 al final
+    if (mv->error == 0)
+        escribirMemoria(mv, dirDestino + i, 1, 0);
+}
+
+void sysWriteString(TMV *mv) {
+    int dirOrigen, c, offset;
+    dirOrigen = mv->registros[REG_EDX];
+    c = 0;
+    offset = 0;
+    leerMemoria(mv, dirOrigen + offset, 1, &c);
+    // mientras: no haya error de memoria y no sea el car nulo \0
+    while (mv->error == 0 && (c & 0xFF) != 0) {
+        printf("%c", c);
+        offset++;
+        leerMemoria(mv, dirOrigen + offset, 1, &c);
+    }
+}
+
+
+/*clear ejecuta una limpieza de pantalla. No requiere ningún registro configurado y
+tampoco modifica ninguno.
+Llama al comando propio del sistema operativo donde se esté corriendo tu Máquina Virtual
+para vaciar el texto de la terminal y dejar la pantalla limpia.*/
+
+void sysClear(TMV *mv) { // no tengo ni idea q hace esto
+#ifdef _WIN32
+    system("cls");
+#else
+    system("clear");
+#endif
+}
  
-// 0x1 -> READ, 0x2 -> WRITE
- 
-void SYS(TMV *mv, int opa, int opb){
+void SYS(TMV *mv, int opa, int opb) {
     int llamada = get(mv, opa);
-    if (llamada == SYS_READ)
-        sysRead(mv);
-    else if (llamada == SYS_WRITE)
-        sysWrite(mv);
-    // cualquier otro numero de llamada: no hace nada
+
+    switch (llamada) {
+        case SYS_CLR:
+            sysClear(mv);
+            break;
+        case SYS_READ:
+            sysRead(mv);
+            break;
+        case SYS_WRITE:
+            sysWrite(mv);
+            break;
+        case SYS_RSTR:
+            sysReadString(mv);
+            break;
+        case SYS_WSTR:
+            sysWriteString(mv);
+            break;
+        default:
+            // cualquier otro numero de llamada no hace nada
+            break;
+    }
 }
  
 //-------SECCION JUMPS--------
@@ -213,6 +273,8 @@ void salto(TMV *mv, int opa){
     opA= get(mv, opa);
     mv->registros[REG_IP]=inicioCS | (opA & 0xFFFF);
 }
+
+
  
  
 void JMP(TMV *mv, int opa, int opb){ //salta siempre
