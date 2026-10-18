@@ -339,7 +339,60 @@ void NOT(TMV *mv, int opa, int opb){ //solamente invertir bits y actualiza reg C
     set(mv, opa, res);
     modCC(mv, res, 0, 0);
 }
- 
+
+
+// ---------- MV2-> INSTRUCCIONES DE PILA------------
+
+
+void PUSH(TMV *mv, int opa, int opb){
+    int opA, sp;
+    sp=mv->registros[REG_SP]-4;
+    if (sp < mv->registros[REG_SS])
+        mv->error=4;
+    else {
+        mv->registros[REG_SP]=sp;
+        opA=get(mv, opa); // ya operandos cumple con la parte de devolver int de 32 bits
+        escribirMemoria(mv, sp, 4, opA); // escribe en nuevo sp (tope de la pila) el valor
+    }
+
+}
+
+
+
+void POP(TMV *mv, int opa, int opb){
+    int valorTope, sp, segSS, offsetSP, tamanioSS;
+    sp = mv->registros[REG_SP];
+    segSS = (sp >> 16) & 0xFFFF; // segm-> 2 bytes mas sign
+    offsetSP = sp & 0xFFFF; // 2 bytes menos sign
+    // checkeo en la tabla de segmentos el tamanio de ss
+    tamanioSS = mv->tablaSegmentos[segSS] & 0xFFFF;
+    if (offsetSP + 4 > tamanioSS) // pila vacía? -> stack underflow (error 5)
+        mv->error = 5; 
+    else {
+        leerMemoria(mv, sp, 4, &valorTope);
+        set(mv, opa, valorTope); // reg q pasaste := valor del tope (algo asi como sacaP)
+        mv->registros[REG_SP] = sp+4 ;
+    }
+}
+
+
+void CALL(TMV *mv, int opa, int opb){
+    int ip;
+    ip=mv->registros[REG_IP];
+    PUSH(mv, ip, 0);
+    salto(mv, opa);
+}
+
+
+
+void RET(TMV *mv, int opa, int opb){
+    POP(mv, REG_IP, 0); //pop->set->setReg y hace mv->registros[REG_IP] = valorTope
+}
+
+
+//--------------------------------------
+
+
 void STOP(TMV *mv, int opa, int opb){
     mv->registros[REG_IP]=-1;
 }
@@ -550,7 +603,7 @@ void RND(TMV *mv, int opa, int opb){
 }
  
  
-instrucciones vecInstr[MAXINSTR] = { SYS, JMP, JP, JN, JZ, JC, JV, JNP, JNN, JNZ, NOT, NULL, NULL, NULL, NULL, STOP, MOV, ADD, SUB, MUL, DIV, CMP, AND, OR, XOR, SWAP, SHL, SHR, SAR, LDL, LDH, RND };
+instrucciones vecInstr[MAXINSTR] = { SYS, JMP, JP, JN, JZ, JC, JV, JNP, JNN, JNZ, NOT, PUSH, POP, CALL, RET, STOP, MOV, ADD, SUB, MUL, DIV, CMP, AND, OR, XOR, SWAP, SHL, SHR, SAR, LDL, LDH, RND };
  
  
  
