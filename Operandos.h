@@ -15,4 +15,6 @@ void set(TMV *mv, int op, int valor);
 void escribirMemoria(TMV *mv, int direLogica, int tam, int valor);
 void leerMemoria(TMV *mv, int direLogica, int tam, int *valor);
 
+int extenderSigno(int valor, int bytes);
+
 #endif
