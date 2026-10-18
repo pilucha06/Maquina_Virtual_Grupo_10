@@ -56,18 +56,48 @@ void escribirMemoria(TMV *mv, int direLogica, int tam, int valor){
 
 
 //GETTERS
+
+// MV2 -> getReg debe extraer el código de registro (5 bits) (como antes) 
+// y ahora ademas el sector (2 bits)
+
+// OPREG = 1 bit reservado + 2 bits sec reg + 5 bits cod reg
+
 int getReg(TMV *mv, int op){
-    int regNum ;
-    regNum= (op &  0x1F); //5 ult bits -> codreg
-    return mv->registros[regNum];
+    int codReg, sector, valorReg;
+    codReg = op & 0x1F; // 0001 1111, 5 ult bits -> codreg
+    sector = (op >> 5) & 0x03;
+    valorReg = mv->registros[codReg];
+
+    switch (sector){
+        case 0: // caso 00, registro de 4 bytes (EAX)
+            return valorReg;
+        case 1: // caso 01, 4to byte del registro (AL)
+            return extenderSigno(valorReg & 0xFF, 1);
+        case 2: // caso 10, 3er byte del registro (AH)
+            return extenderSigno((valorReg >> 8) & 0xFF, 1); 
+        case 4: // caso 11, registro de 2 bytes (AX)
+            return extenderSigno(valorReg & 0xFFFF, 2);
+    }
+    // el retorno es siempre un int de 32 bits 
 }
 
 int getInm(TMV *mv, int op){
     return (short)(op & 0xFFFF); //los 4 bytes
 }
 
+
+// MV2 -> para memoria...
+/* cito de especificacion: 
+Operando de memoria: los tres bits más significativos indican el tamaño del valor a
+leer o escribir, de acuerdo a la siguiente codificación: 
+        001 byte (b) 1 byte 
+        010 word (w) 2 bytes
+        100 long (l) 4 bytes
+*/
+
 int getMem(TMV *mv, int op){
-    int regNum, segmento, direLogica, offset, valor, puntero, offsetPuntero;
+    int regNum, segmento, direLogica, offset, valor, puntero, offsetPuntero, tamBytes;
+    tamBytes=obtenerCantBytesMem(op);
     offset = (short)((op >> 8) &  0xFFFF); // corro 8=dire +3 reservados, [EBX + 2] despl extra
     regNum = op & 0x1F; // dire reg->5 ult bits
     //puntero=elem en reg=> 16 izq=segmento, 16 der= offset en segmento
@@ -77,19 +107,44 @@ int getMem(TMV *mv, int op){
     //calculo direccion logica = 2 bytes +s segmento + 2 bytes -s offset
     direLogica = (segmento << 16) | ((offsetPuntero + offset) & 0xFFFF);
     valor = 0;
-    leerMemoria(mv, direLogica, 4, &valor);
-    return valor; 
+    leerMemoria(mv, direLogica, tamBytes, &valor);
+    return extenderSigno(valor, tamBytes); // output siempre int 32 bits 
 }           
 
 //SETTERS
+
+// MV2 -> ahora, al escribir en un registro, solo hay que modificar el
+// sector indicado, conservando los bytes restantes del registro intactos
+
+// OPREG = 1 bit reservado + 2 bits sec reg + 5 bits cod reg
+
 void setReg(TMV *mv, int op, int valor){
-    int regNum = op & 0x1F; //5 ult bits -> codreg
-    mv->registros[regNum] = valor;
+    int codReg, sector, valorReg;
+    codReg = op & 0x1F; //5 ult bits -> codreg
+    valorReg=mv->registros[codReg]; //para algunos casos, hay q tener en cuenta el valor anterior
+    sector = (op>>5) & 0x03;
+
+    switch (sector){
+        case 0: // caso 00, modificar reg entero (EAX)
+        // entramos en este caso si el vmx es de la version 1
+            mv->registros[codReg] = valor; 
+            break;
+        case 1: // caso 01, solo cambiar el menos significativo (parte baja) (AL)
+            mv->registros[codReg] = (valorReg & 0xFFFFFF00) | (valor & 0xFF);
+            break;
+        case 2: // caso 10, cambiar solo el segundo byte (parte alta) (AH)
+            mv->registros[codReg] = (valorReg & 0xFFFF00FF) | ((valor & 0xFF) <<8 ); //corro un byte el valor filtrado para que entre 
+            break;
+        case 3: // caso 11, 2 bytes menos significativos (AX)
+            mv->registros[codReg] = (valorReg & 0xFFFF0000) | (valor & 0xFFFF);
+            break;
+    }
 }
 
 
 void setMem(TMV *mv, int op, int valor){
-    int regNum, segmento, direLogica, offset, offsetPuntero, puntero;
+    int regNum, segmento, direLogica, offset, offsetPuntero, puntero, tamBytes;
+    tamBytes = obtenerCantBytesMem(op);
     offset = (short)((op >> 8) &  0xFFFF); // corro 8=dire+3 reservados
     regNum = op & 0x1F; // dire->5 ult bits
     puntero= mv->registros[regNum];
@@ -97,7 +152,7 @@ void setMem(TMV *mv, int op, int valor){
     offsetPuntero=puntero & 0xFFFF;
     //calculo direccion logica = 2 bytes +s segmento + 2 bytes -s offset
     direLogica = (segmento << 16) | ((offset + offsetPuntero) & 0xFFFF);
-    escribirMemoria(mv, direLogica, 4, valor);
+    escribirMemoria(mv, direLogica, tamBytes, valor);
 }        
 
 //FUNCIONES PPALES 
@@ -132,3 +187,30 @@ void set(TMV *mv, int op, int valor){
         vecSet[tipo](mv, op, valor);
 }
 
+
+
+
+//-------agregados de MV2------------
+
+// funcion para registros y memoria
+int extenderSigno(int valor, int bytes) {
+    if (bytes == 1) 
+        return (int)(signed char)(valor & 0xFF);
+    else if (bytes == 2) 
+        return (int)(short)(valor & 0xFFFF);
+    else
+        return valor; // para 4 bytes se mantiene igual
+}
+
+// funcion para memoria
+int obtenerCantBytesMem(int op) {
+    int mod = (op >> 5) & 0x07; // filtra los bits 5, 6 y 7
+    if (mod == 1) 
+        return 1;     // 001: byte (b)
+    else if (mod == 2) 
+        return 2;     // 010: word (w)
+    else if (mod == 4) 
+        return 4;     // 100: long (l)
+    else 
+        return 4;   // si es 0 (como en la MV1) devuelve 4 por default
+}
