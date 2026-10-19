@@ -15,6 +15,9 @@
 #define ERR_VER 3
 #define ERR_TAM_COD 4
 #define ERR_MEM 5
+#define ERR_ARG_M    6
+#define ERR_SIN_ARCH 7
+#define MAX_MEM_KIB  64   // con bases de 16 bits no se puede direccionar más allá de 64 KiB (consultar a la cátedra)
 
 typedef enum {
     VER_1 = 1, VER_2 = 2

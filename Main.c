@@ -24,6 +24,12 @@ void mostrarResult(int result){
         case ERR_MEM:
             printf("ERROR: No se pudo reservar memoria para la MV\n");
             break;
+        case ERR_ARG_M:
+            printf("ERROR: Tamanio de memoria invalido (m=M, con M entre 1 y %d)\n", MAX_MEM_KIB);
+            break;
+        case ERR_SIN_ARCH:
+            printf("ERROR: Debe indicarse al menos un archivo .vmx o .vmi\n");
+            break;
         default:
             printf("ERROR: Codigo de resultado desconocido (%d)\n", result);
     }

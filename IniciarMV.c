@@ -31,6 +31,69 @@ int reservoEspacioMV(TMV *MV, unsigned int tamRam){
     return 1;
 }
 
+// Devuelve 1 si str termina exactamente en ext (ej: ".vmx"), 0 si no
+static int terminaEn(const char *str, const char *ext) {
+    size_t largoStr = strlen(str);
+    size_t largoExt = strlen(ext);
+    int resultado = 0;
+
+    if (largoStr >= largoExt)
+        resultado = (strcmp(str + largoStr - largoExt, ext) == 0);
+    return resultado;
+}
+
+int leerArgumentos(int argc, char *argv[], TArgumentos *args) {
+    int i = 1;            // argv[0] es el nombre del ejecutable, se saltea
+    int finFlags = 0;     // se pone en 1 cuando aparece -p
+    int result = OK;
+    long posibleM;
+    char *inicioM, *finPointer;
+
+    // Valores por defecto
+    args->nomVMX = NULL;
+    args->nomVMI = NULL;
+    args->tamMemKiB = TAM_RAM_DEFAULT / 1024;   // 16 KiB
+    args->mostrarDis = 0;
+    args->posParam = 0;
+    args->cantParam = 0;
+
+    while (i < argc && !finFlags && result == OK) {
+        if (terminaEn(argv[i], ".vmx"))
+            args->nomVMX = argv[i];
+
+        else if (terminaEn(argv[i], ".vmi"))
+            args->nomVMI = argv[i];
+
+        else if (strncmp(argv[i], "m=", 2) == 0) {
+            inicioM = argv[i] + 2;              // apunta a lo que sigue a "m="
+            posibleM = strtol(inicioM, &finPointer, 10);
+            if (finPointer == inicioM || *finPointer != '\0' || posibleM <= 0 || posibleM > MAX_MEM_KIB)
+                result = ERR_ARG_M;          // vacío, con basura atrás, o fuera de rango
+            else
+                args->tamMemKiB = (unsigned int)posibleM;
+        }
+
+        else if (strcmp(argv[i], "-d") == 0)
+            args->mostrarDis = 1;
+
+        else if (strcmp(argv[i], "-p") == 0) {
+            finFlags = 1;
+            args->posParam = i + 1;            // el primer parámetro está justo después de -p
+            args->cantParam = argc - (i + 1);  // todo lo que queda hasta el final
+        }
+        // cualquier otro argumento se ignora
+        i++;
+    }
+
+    if (result == OK && args->nomVMX == NULL && args->nomVMI == NULL)
+        result = ERR_SIN_ARCH;               // el PDF exige al menos uno de los dos
+
+    if (args->nomVMX == NULL)
+        args->cantParam = 0;                 // sin .vmx, los parámetros de -p se ignoran
+
+    return result;
+}
+
 unsigned int armarEntrada(unsigned short base, unsigned short tam) {
     return ((unsigned int)base << 16) | tam;
 }
