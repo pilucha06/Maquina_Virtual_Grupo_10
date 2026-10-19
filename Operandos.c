@@ -77,6 +77,7 @@ int getReg(TMV *mv, int op){
             return extenderSigno((valorReg >> 8) & 0xFF, 1); 
         case 3: // caso 11, registro de 2 bytes (AX)
             return extenderSigno(valorReg & 0xFFFF, 2);
+        default: return 0; // no deberia pasar, pero por las dudas
     }
     // el retorno es siempre un int de 32 bits 
 }
