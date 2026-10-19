@@ -30,6 +30,9 @@ void mostrarResult(int result){
         case ERR_SIN_ARCH:
             printf("ERROR: Debe indicarse al menos un archivo .vmx o .vmi\n");
             break;
+        case ERR_HEADER:
+            printf("ERROR: Header espantoso, boludas! ERROR DE HEADERRRR\n");
+            break;
         default:
             printf("ERROR: Codigo de resultado desconocido (%d)\n", result);
     }

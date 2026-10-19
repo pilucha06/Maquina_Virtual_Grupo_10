@@ -7,6 +7,19 @@
 #define V1_IDX_COD 0
 #define V1_IDX_DAT 1
 
+// Orden en que el header v2 trae los tamaños de los segmentos (bytes 6 a 15).
+// No coincide con el orden en memoria (TipoSegmento), por eso cada lectura
+// se guarda en tam->tam[ordenHeaderV2[i]].
+static const TipoSegmento ordenHeaderV2[] = { TS_CODE, TS_DATA, TS_EXTRA, TS_STACK, TS_CONST };
+#define CANT_TAM_HEADER_V2 5
+
+typedef enum {TS_PARAM = 0, TS_CONST, TS_CODE, TS_DATA, TS_EXTRA, TS_STACK, CANT_SEG_PROC } TipoSegmento;
+
+typedef struct {
+    unsigned short tam[CANT_SEG_PROC];   // tamaño en bytes de cada segmento, 0 = no existe
+    unsigned short entryPoint;           // offset dentro del Code Segment
+} TTamanios;
+
 int reservoEspacioMV(TMV *MV, unsigned int tamRam){
     MV->tam_ram = tamRam;
     MV->nombreVMI = NULL;
@@ -102,14 +115,77 @@ unsigned int armarPunteroLogico(unsigned short segmento, unsigned short offset){
     return ((unsigned int)segmento << 16) | offset;
 }
 
+// Lee 2 bytes en big endian del archivo y los deja en *valor.
+// Devuelve OK, o ERR_ARCH si el archivo se cortó antes.
+static int leer16(FILE *arch, unsigned short *valor) {
+    unsigned char aux[2];
+    int result = OK;
+
+    if (fread(aux, sizeof(unsigned char), 2, arch) < 2)
+        result = ERR_ARCH;
+    else
+        *valor = (unsigned short)((aux[0] << 8) | aux[1]);
+    return result;
+}
+
+// Header v1: solo trae el tamaño del código (bytes 6-7).
+// En la v1 el código va en el Code Segment y TODA la memoria que sobra es el Data Segment.
+// No hay Param, Const, Extra ni Stack, y la ejecución arranca en el offset 0.
+static int leerHeaderV1(FILE *arch, unsigned int tamRam, TTamanios *tam) {
+    unsigned short tamCod;
+    int i, result;
+
+    for (i = 0; i < CANT_SEG_PROC; i++)
+        tam->tam[i] = 0;
+    tam->entryPoint = 0;
+
+    result = leer16(arch, &tamCod);
+    if (result == OK) {
+        if (tamCod > tamRam)
+            result = ERR_TAM_COD;
+        else {
+            tam->tam[TS_CODE] = tamCod;
+            tam->tam[TS_DATA] = (unsigned short)(tamRam - tamCod);
+        }
+    }
+    return result;
+}
+
+// Header v2: trae los tamaños de Code, Data, Extra, Stack y Const (en ese orden)
+// y el offset del entry point. El Param Segment no viene en el header: lo calcula
+// otra función a partir de los argumentos.
+static int leerHeaderV2(FILE *arch, TTamanios *tam) {
+    int i, result = OK;
+
+    for (i = 0; i < CANT_SEG_PROC; i++)
+        tam->tam[i] = 0;
+    tam->entryPoint = 0;
+
+    i = 0;
+    while (i < CANT_TAM_HEADER_V2 && result == OK) {
+        result = leer16(arch, &tam->tam[ordenHeaderV2[i]]);
+        i++;
+    }
+
+    if (result == OK)
+        result = leer16(arch, &tam->entryPoint);
+
+    if (result == OK) {
+        if (tam->tam[TS_CODE] == 0 || tam->tam[TS_STACK] == 0 || tam->entryPoint >= tam->tam[TS_CODE])
+            result = ERR_HEADER;
+    }
+
+    return result;
+}
+
 int inicializoMV(TMV *MV, char nomArch[]){
     FILE *arch;
-    unsigned char aux[2]; //sirve para ayudar a leer el header
     size_t num; //verificador de que los reads den bien
-    int i, baseCod = 0;
+    int i, baseCod = 0, result;
     unsigned short tamCod;
     char id[TAM_ID + 1];
     unsigned char version;
+    TTamanios tam;
 
     arch = fopen(nomArch, "rb");
     if (arch == NULL)
@@ -138,19 +214,13 @@ int inicializoMV(TMV *MV, char nomArch[]){
             return ERR_VER;
          }
 
-    //LEO SIZE
-    num = fread(aux, sizeof(char), 2, arch);
-    if (num < 2){
+    //LEO EL RESTO DEL HEADER (v1)
+    result = leerHeaderV1(arch, MV->tam_ram, &tam);
+    if (result != OK){
         fclose(arch);
-        return ERR_ARCH;
+        return result;
     }
-    else{
-        tamCod = (aux[0] << 8) | aux[1];
-        if (tamCod > MV->tam_ram){
-            fclose(arch);
-            return ERR_TAM_COD;
-        }
-    }
+    tamCod = tam.tam[TS_CODE];   // PROVISORIO: hasta que el armado use todo TTamanios
 
     //TABLA DE SEGMENTOS
     MV->tablaSegmentos[V1_IDX_COD] = armarEntrada(baseCod, tamCod);

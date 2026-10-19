@@ -17,6 +17,7 @@
 #define ERR_MEM 5
 #define ERR_ARG_M    6
 #define ERR_SIN_ARCH 7
+#define ERR_HEADER 8   // el header se leyó bien, pero su contenido es inválido
 #define MAX_MEM_KIB  64   // con bases de 16 bits no se puede direccionar más allá de 64 KiB (consultar a la cátedra)
 
 typedef enum {
@@ -32,9 +33,11 @@ typedef enum {
     REG_AC = 16, REG_CC,
     REG_CS = 26, REG_DS, REG_ES, REG_SS, REG_KS, REG_PS
 } CodigoRegistro;
+
 typedef enum {
     DBG_NORMAL = 0, DBG_PASO, DBG_SALIR
 } EstadoDebug;
+
 //STRUCT - DEFINICION DE LA MAQUINA VIRTUAL
 typedef struct {
     unsigned char *RAM;             // memoria principal, celdas de 1 byte
