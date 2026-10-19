@@ -2,6 +2,7 @@
 #include <string.h>
 #include "Imagen.h"
 #include "MV.h"
+#include "IniciarMV.h"
 
 //Función auxiliar para escribir en big endian
 static void auxwrite(FILE* Arch, unsigned int dato, int cantbytes){
@@ -26,8 +27,8 @@ void escribirImagen(TMV *MV, char nomArch[]){
         printf("Error al abrir el archivo %s\n",nomArch);
         return;
     }
-    fwrite("VMI26", 1, 5, Arch);
-    fputc(1, Arch);
+    fwrite(ID_MVI, 1, 5, Arch);
+    fputc(TAM_ID, Arch);
     auxwrite(Arch, MV->tam_ram / 1024, 2);
     for (int i = 0; i < CANT_REGS; i++)
         auxwrite(Arch, MV->registros[i], 4);

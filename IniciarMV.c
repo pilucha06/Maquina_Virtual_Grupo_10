@@ -9,6 +9,9 @@
 
 int reservoEspacioMV(TMV *MV, unsigned int tamRam){
     MV->tam_ram = tamRam;
+    MV->nombreVMI = NULL;
+    MV->error = 0;
+    MV->estadoDebug = DBG_NORMAL;
     MV->RAM = calloc(tamRam, sizeof(unsigned char)); //reserva tamRam bytes en el heap, todos en 0
     if(MV->RAM == NULL)
         return 0;
@@ -24,8 +27,7 @@ int reservoEspacioMV(TMV *MV, unsigned int tamRam){
         free(MV->RAM);
         free(MV->registros);
         return 0;
-    } 
-
+    }
     return 1;
 }
 

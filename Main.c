@@ -21,6 +21,9 @@ void mostrarResult(int result){
         case ERR_TAM_COD:
             printf("ERROR: El codigo no entra en la memoria\n");
             break;
+        case ERR_MEM:
+            printf("ERROR: No se pudo reservar memoria para la MV\n");
+            break;
         default:
             printf("ERROR: Codigo de resultado desconocido (%d)\n", result);
     }
