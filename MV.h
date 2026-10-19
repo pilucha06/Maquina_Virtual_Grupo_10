@@ -28,14 +28,18 @@ typedef enum {
     REG_AC = 16, REG_CC,
     REG_CS = 26, REG_DS, REG_ES, REG_SS, REG_KS, REG_PS
 } CodigoRegistro;
-
+typedef enum {
+    DBG_NORMAL = 0, DBG_PASO, DBG_SALIR
+} EstadoDebug;
 //STRUCT - DEFINICION DE LA MAQUINA VIRTUAL
 typedef struct {
     unsigned char *RAM;             // memoria principal, celdas de 1 byte
     unsigned int  tam_ram;          // tamaño de la memoria EN BYTES (default TAM_RAM_DEFAULT o m=M * 1024)
     int           *registros;       // vector de 32 registros de 4 bytes
     unsigned int  *tablaSegmentos;  // 8 entradas: 2 bytes base + 2 bytes tamaño
-    short int     error;            
+    short int     error;
+    char       *nombreVMI;    // nombre del .vmi, NULL si no vino por parametro
+    EstadoDebug estadoDebug;  // NORMAL / PASO / SALIR            
 } TMV;
 
 // error de ejecucion: 0 ok, 1 instr invalida, 

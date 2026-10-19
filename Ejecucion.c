@@ -6,6 +6,7 @@ después de inicializar todas las estructuras*/
 #include <stdio.h>
 #include "Ejecucion.h"
 #include "Instrucciones.h"
+#include "Imagen.h"
 
 // Máscaras y corrimientos propios de la codificación de instrucciones/operandos
 // (no están en MV.h porque son de formato, no de la estructura de la máquina)
@@ -195,7 +196,7 @@ void ejecutar(TMV *MV) {
 
     // Paso 1: la ejecucion sigue mientras IP apunte dentro del segmento de codigo
     fisica_ip = direc_fisica(MV->registros[REG_IP], MV, 1);
-    while (fisica_ip != -1 && MV->error == 0) {
+    while (fisica_ip != -1 && MV->error == 0 && MV->estadoDebug != DBG_SALIR) {
 
         // Paso 2: distingo la operacion y los tipos de operandos
         instruccion = MV->RAM[fisica_ip];
@@ -233,6 +234,9 @@ void ejecutar(TMV *MV) {
 
                 // Paso 7: ejecuto la instruccion
                 vecInstr[MV->registros[REG_OPC]](MV, MV->registros[REG_OP1], MV->registros[REG_OP2]);
+                if (MV->estadoDebug == DBG_PASO && MV->error == 0 && !(MV->registros[REG_OPC] == 0 && (MV->registros[REG_OP1] & 0xFFFF) == 0xF)) {
+                    breakpoint(MV); 
+                }
             }
         }
 

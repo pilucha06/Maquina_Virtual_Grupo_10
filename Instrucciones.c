@@ -7,12 +7,14 @@
 #include <stdio.h>
 #include <string.h>
 #include "Instrucciones.h"
+#include "Imagen.h"
  
 #define SYS_CLR   0  // limpiar pantalla
 #define SYS_READ  1  // leer valores formateados 
 #define SYS_WRITE 2  // escribir "
 #define SYS_RSTR  3  // leer string
 #define SYS_WSTR  4  // escribir "
+#define SYS_BREAK 0xF // breakpoint
  
 
 //------READ------
@@ -257,6 +259,9 @@ void SYS(TMV *mv, int opa, int opb) {
             break;
         case SYS_WSTR:
             sysWriteString(mv);
+            break;
+        case SYS_BREAK:
+            breakpoint(mv);
             break;
         default:
             // cualquier otro numero de llamada no hace nada
