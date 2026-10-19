@@ -7,6 +7,7 @@ después de inicializar todas las estructuras*/
 #include "Ejecucion.h"
 #include "Instrucciones.h"
 #include "Imagen.h"
+#include "Operandos.h"
 
 // Máscaras y corrimientos propios de la codificación de instrucciones/operandos
 // (no están en MV.h porque son de formato, no de la estructura de la máquina)
@@ -23,25 +24,26 @@ después de inicializar todas las estructuras*/
 
 const char *nombres_registros[CANT_REGS] = {
     [REG_IP]  = "IP",  [REG_OPC] = "OPC", [REG_OP1] = "OP1", [REG_OP2] = "OP2",
-    [REG_LAR] = "LAR", [REG_MAR] = "MAR", [REG_MBR] = "MBR",
+    [REG_LAR] = "LAR", [REG_MAR] = "MAR", [REG_MBR] = "MBR", [REG_SP]  = "SP",[REG_BP]  = "BP",
     [REG_EAX] = "EAX", [REG_EBX] = "EBX", [REG_ECX] = "ECX", [REG_EDX] = "EDX",
     [REG_EEX] = "EEX", [REG_EFX] = "EFX",
     [REG_AC]  = "AC",  [REG_CC]  = "CC",
-    [REG_CS]  = "CS",  [REG_DS]  = "DS"
+    [REG_CS]  = "CS",  [REG_DS]  = "DS", [REG_ES]  = "ES",  [REG_SS]  = "SS",
+    [REG_KS]  = "KS",  [REG_PS]  = "PS",
     // el resto (7,8,9,18-25,28-31) quedan en NULL: reservados/no usados
 };
 
 const char *nombres_mnemonicos[CANT_REGS] = {
     [0x00] = "SYS",  [0x01] = "JMP", [0x02] = "JP",  [0x03] = "JN",
     [0x04] = "JZ",   [0x05] = "JC",  [0x06] = "JV",  [0x07] = "JNP",
-    [0x08] = "JNN",  [0x09] = "JNZ", [0x0A] = "NOT", [OPCODE_STOP] = "STOP",
+    [0x08] = "JNN",  [0x09] = "JNZ", [0x0A] = "NOT",[0x0B] = "PUSH", 
+    [0x0C] = "POP", [0x0D] = "CALL", [0x0E] = "RET",[OPCODE_STOP] = "STOP",
     [0x10] = "MOV",  [0x11] = "ADD", [0x12] = "SUB", [0x13] = "MUL",
     [0x14] = "DIV",  [0x15] = "CMP", [0x16] = "AND", [0x17] = "OR",
     [0x18] = "XOR",  [0x19] = "SWAP",[0x1A] = "SHL", [0x1B] = "SHR",
     [0x1C] = "SAR",  [0x1D] = "LDL", [0x1E] = "LDH", [0x1F] = "RND"
     // el resto queda en NULL: opcode inválido
 };
-
 /* direc_fisica: a partir de una dirección lógica y una cantidad de bytes a leer,
    valida que la posición inicial sea correcta y que se puedan leer esos bytes
    sin salirse del segmento. Si es válida, devuelve la posición física inicial. */
@@ -114,9 +116,31 @@ void formatear_operando(int operando, char *buffer) {
         case 0: // no existe
             buffer[0] = '\0';
             break;
-        case 1: // registro
-            snprintf(buffer, TAM_BUFFER_TEXTO, "%s", nombres_registros[valor & MASCARA_OPCODE]);
+        case 1: { // registro, con pseudonimo segun el sector
+            int codigo_reg = valor & MASCARA_OPCODE;
+            int sector     = (valor >> 5) & 0x03;
+            const char *nombre = nombres_registros[codigo_reg];
+
+            if (codigo_reg >= REG_EAX && codigo_reg <= REG_EFX) {
+                char letra = nombre[1]; // la letra del medio: A, B, C, D, E o F
+                switch (sector) {
+                    case 1:
+                        snprintf(buffer, TAM_BUFFER_TEXTO, "%cL", letra);
+                        break;
+                    case 2:
+                        snprintf(buffer, TAM_BUFFER_TEXTO, "%cH", letra);
+                        break;
+                    case 3:
+                        snprintf(buffer, TAM_BUFFER_TEXTO, "%cX", letra);
+                        break;
+                    default: // sector 0: registro completo
+                        snprintf(buffer, TAM_BUFFER_TEXTO, "%s", nombre);
+                        break;
+                }
+            } else
+                snprintf(buffer, TAM_BUFFER_TEXTO, "%s", nombre);
             break;
+        }
         case 2: { // inmediato (con signo)
             int inmediato = extender_signo_16(valor & MASCARA_16_BITS);
             snprintf(buffer, TAM_BUFFER_TEXTO, "%d", inmediato);

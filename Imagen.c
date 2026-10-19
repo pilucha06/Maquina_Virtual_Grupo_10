@@ -27,8 +27,8 @@ void escribirImagen(TMV *MV, char nomArch[]){
         printf("Error al abrir el archivo %s\n",nomArch);
         return;
     }
-    fwrite(ID_MVI, 1, 5, Arch);
-    fputc(TAM_ID, Arch);
+    fwrite(ID_MVI, sizeof(char), TAM_ID, Arch);
+    fputc(1, Arch);
     auxwrite(Arch, MV->tam_ram / 1024, 2);
     for (int i = 0; i < CANT_REGS; i++)
         auxwrite(Arch, MV->registros[i], 4);
