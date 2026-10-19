@@ -14,6 +14,7 @@
 #define ERR_ID 2
 #define ERR_VER 3
 #define ERR_TAM_COD 4
+#define ERR_MEM 5
 
 typedef enum {
     VER_1 = 1, VER_2 = 2
