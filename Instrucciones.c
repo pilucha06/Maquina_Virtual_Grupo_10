@@ -7,12 +7,14 @@
 #include <stdio.h>
 #include <string.h>
 #include "Instrucciones.h"
+#include "Imagen.h"
  
 #define SYS_CLR   0  // limpiar pantalla
 #define SYS_READ  1  // leer valores formateados 
 #define SYS_WRITE 2  // escribir "
 #define SYS_RSTR  3  // leer string
 #define SYS_WSTR  4  // escribir "
+#define SYS_BREAK 0xF // breakpoint
  
 
 //------READ------
@@ -258,6 +260,9 @@ void SYS(TMV *mv, int opa, int opb) {
         case SYS_WSTR:
             sysWriteString(mv);
             break;
+        case SYS_BREAK:
+            breakpoint(mv);
+            break;
         default:
             // cualquier otro numero de llamada no hace nada
             break;
@@ -404,8 +409,109 @@ void NOT(TMV *mv, int opa, int opb){ //solamente invertir bits y actualiza reg C
 
 
 // ---------- MV2-> INSTRUCCIONES DE PILA------------
+void PUSH(TMV *mv, int opa, int opb) {
+    int valor, sp, segSS, segSP;
+    int offsetSP, tamanioSS, nuevoOffset;
 
+    if (mv->registros[REG_SS] == -1) {
+        mv->error = 3;
+        return;
+    }
 
+    sp = mv->registros[REG_SP];
+
+    segSS = (mv->registros[REG_SS] >> 16) & MASCARA_16_BITS;
+    segSP = (sp >> 16) & MASCARA_16_BITS;
+    offsetSP = sp & MASCARA_16_BITS;
+
+    if (segSS >= CANT_SEGS || segSP != segSS ||
+        mv->tablaSegmentos[segSS] == ENTRADA_LIBRE) {
+        mv->error = 3;
+        return;
+    }
+
+    tamanioSS = mv->tablaSegmentos[segSS] & MASCARA_16_BITS;
+
+    if (offsetSP > tamanioSS || offsetSP < 4) {
+        mv->error = 4;
+        return;
+    }
+
+    nuevoOffset = offsetSP - 4;
+    valor = get(mv, opa);
+
+    if (mv->error != 0)
+        return;
+
+    escribirMemoria(mv, armarPunteroLogico(segSS, nuevoOffset),
+                    4, valor);
+
+    if (mv->error == 0)
+        mv->registros[REG_SP] = armarPunteroLogico(segSS, nuevoOffset);
+}
+void POP(TMV *mv, int opa, int opb) {
+    int valorTope, sp, segSS, segSP;
+    int offsetSP, tamanioSS, nuevoOffset;
+
+    if (mv->registros[REG_SS] == -1) {
+        mv->error = 3;
+        return;
+    }
+
+    sp = mv->registros[REG_SP];
+
+    segSS = (mv->registros[REG_SS] >> 16) & MASCARA_16_BITS;
+    segSP = (sp >> 16) & MASCARA_16_BITS;
+    offsetSP = sp & MASCARA_16_BITS;
+
+    if (segSS >= CANT_SEGS || segSP != segSS ||
+        mv->tablaSegmentos[segSS] == ENTRADA_LIBRE) {
+        mv->error = 3;
+        return;
+    }
+
+    tamanioSS = mv->tablaSegmentos[segSS] & MASCARA_16_BITS;
+
+    if (offsetSP > tamanioSS || tamanioSS - offsetSP < 4) {
+        mv->error = 5;
+        return;
+    }
+
+    leerMemoria(mv, sp, 4, &valorTope);
+
+    if (mv->error != 0)
+        return;
+
+    set(mv, opa, valorTope);
+
+    if (mv->error != 0)
+        return;
+
+    nuevoOffset = offsetSP + 4;
+    mv->registros[REG_SP] = armarPunteroLogico(segSS, nuevoOffset);
+}
+void CALL(TMV *mv, int opa, int opb) {
+    int opIP;
+
+    /* Tipo 1: registro; sector 0: registro completo; REG_IP = 0. */
+    opIP = (1 << 24) | REG_IP;
+
+    PUSH(mv, opIP, 0);
+
+    if (mv->error == 0)
+        salto(mv, opa);
+}
+
+void RET(TMV *mv, int opa, int opb) {
+    int opIP;
+
+    /* Tipo 1: registro; sector 0: registro completo; REG_IP = 0. */
+    opIP = (1 << 24) | REG_IP;
+
+    POP(mv, opIP, 0);
+}
+
+/*
 void PUSH(TMV *mv, int opa, int opb){
     int opA, sp;
     sp=mv->registros[REG_SP]-4;
@@ -453,7 +559,7 @@ void RET(TMV *mv, int opa, int opb){
 
 
 //--------------------------------------
-
+*/
 
 void STOP(TMV *mv, int opa, int opb){
     mv->registros[REG_IP]=-1;

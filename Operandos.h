@@ -16,5 +16,6 @@ void escribirMemoria(TMV *mv, int direLogica, int tam, int valor);
 void leerMemoria(TMV *mv, int direLogica, int tam, int *valor);
 
 int extenderSigno(int valor, int bytes);
+int obtenerCantBytesMem(int op);
 
 #endif

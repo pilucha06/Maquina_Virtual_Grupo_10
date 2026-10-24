@@ -14,6 +14,12 @@
 #define ERR_ID 2
 #define ERR_VER 3
 #define ERR_TAM_COD 4
+#define ERR_MEM 5
+#define ERR_ARG_M    6
+#define ERR_SIN_ARCH 7
+#define ERR_HEADER 8   // el header se leyó bien, pero su contenido es inválido
+#define ERR_MEM_INSUF 9   // el proceso no entra en la memoria
+#define MAX_MEM_KIB  64   // con bases de 16 bits no se puede direccionar más allá de 64 KiB (consultar a la cátedra)
 
 typedef enum {
     VER_1 = 1, VER_2 = 2
@@ -29,13 +35,19 @@ typedef enum {
     REG_CS = 26, REG_DS, REG_ES, REG_SS, REG_KS, REG_PS
 } CodigoRegistro;
 
+typedef enum {
+    DBG_NORMAL = 0, DBG_PASO, DBG_SALIR
+} EstadoDebug;
+
 //STRUCT - DEFINICION DE LA MAQUINA VIRTUAL
 typedef struct {
     unsigned char *RAM;             // memoria principal, celdas de 1 byte
     unsigned int  tam_ram;          // tamaño de la memoria EN BYTES (default TAM_RAM_DEFAULT o m=M * 1024)
     int           *registros;       // vector de 32 registros de 4 bytes
     unsigned int  *tablaSegmentos;  // 8 entradas: 2 bytes base + 2 bytes tamaño
-    short int     error;            
+    short int     error;
+    char       *nombreVMI;    // nombre del .vmi, NULL si no vino por parametro
+    EstadoDebug estadoDebug;  // NORMAL / PASO / SALIR            
 } TMV;
 
 // error de ejecucion: 0 ok, 1 instr invalida, 
