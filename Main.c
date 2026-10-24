@@ -1,6 +1,6 @@
 #include <stdlib.h>
 #include <stdio.h>
-#include <string.h>
+#include "Imagen.h"
 #include "IniciarMV.h"
 #include "Ejecucion.h"   // <-- agregar este include
 
@@ -43,35 +43,40 @@ void mostrarResult(int result){
 
 int main(int argc, char *argv[]){
     TMV MV;
-    int i, mostrarDis = 0, result;
+    TArgumentos args;
+    int result;
 
-    if (argc >= 2)
-        if (reservoEspacioMV(&MV, TAM_RAM_DEFAULT)){
-            result = inicializoMV(&MV, argv[1]);
-            mostrarResult(result);
-            if (result == OK){
-                for (i = 2; i < argc; i++)
-                    if (strcmp(argv[i], "-d") == 0)
-                        mostrarDis = 1;
-                if (mostrarDis)
-                    desensamblar(&MV);
-                ejecutar(&MV);
+    // Punteros en NULL: así liberarMV es seguro aunque no se haya reservado nada
+    MV.RAM = NULL;
+    MV.registros = NULL;
+    MV.tablaSegmentos = NULL;
 
-                liberarMV(&MV);
-                return 0;
-            }
-            else{
-                liberarMV(&MV);
-                return 1;
+    result = leerArgumentos(argc, argv, &args);
+
+    if (result == OK) {
+        if (args.nomVMX != NULL) {
+            if (!reservoEspacioMV(&MV, args.tamMemKiB * 1024)) //el usuario dio KiB, y reservoEspacioMV pide bytes
+                result = ERR_MEM;
+            else {
+                result = inicializoMV(&MV, args.nomVMX);
+                if (result == OK)
+                    MV.nombreVMI = args.nomVMI;   // NULL si no vino .vmi -> breakpoints ignorados
             }
         }
-        else{
-            printf("ERROR: No se pudo reservar espacio para componentes de la MV");
-            return 1;
+        else {
+            // Camino solo .vmi: cargarImagen reserva la memoria por dentro
+            result = cargarImagen(&MV, args.nomVMI);
         }
-    else{
-        printf("ERROR: Parametros incorrectos o insuficientes");
-        return 1;
     }
-}
 
+    mostrarResult(result);
+
+    if (result == OK) {
+        if (args.mostrarDis)
+            desensamblar(&MV);
+        ejecutar(&MV);
+    }
+
+    liberarMV(&MV);
+    return (result == OK) ? 0 : 1;
+}
