@@ -7,18 +7,18 @@
 #define V1_IDX_COD 0
 #define V1_IDX_DAT 1
 
-// Orden en que el header v2 trae los tamaños de los segmentos (bytes 6 a 15).
-// No coincide con el orden en memoria (TipoSegmento), por eso cada lectura
-// se guarda en tam->tam[ordenHeaderV2[i]].
-static const TipoSegmento ordenHeaderV2[] = { TS_CODE, TS_DATA, TS_EXTRA, TS_STACK, TS_CONST };
-#define CANT_TAM_HEADER_V2 5
-
 typedef enum {TS_PARAM = 0, TS_CONST, TS_CODE, TS_DATA, TS_EXTRA, TS_STACK, CANT_SEG_PROC } TipoSegmento;
 
 typedef struct {
     unsigned short tam[CANT_SEG_PROC];   // tamaño en bytes de cada segmento, 0 = no existe
     unsigned short entryPoint;           // offset dentro del Code Segment
 } TTamanios;
+
+// Orden en que el header v2 trae los tamaños de los segmentos (bytes 6 a 15).
+// No coincide con el orden en memoria (TipoSegmento), por eso cada lectura
+// se guarda en tam->tam[ordenHeaderV2[i]].
+static const TipoSegmento ordenHeaderV2[] = { TS_CODE, TS_DATA, TS_EXTRA, TS_STACK, TS_CONST };
+#define CANT_TAM_HEADER_V2 5
 
 int reservoEspacioMV(TMV *MV, unsigned int tamRam){
     MV->tam_ram = tamRam;
