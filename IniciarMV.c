@@ -202,20 +202,27 @@ int inicializoMV(TMV *MV, char nomArch[]){
             fclose(arch);
             return ERR_ID;
          }
-    
-    //LEO VERSION
+         
+    //LEO VERSION Y EL RESTO DEL HEADER (segun la version)
     num = fread(&version, sizeof(char), 1, arch);
     if (num < 1){
         fclose(arch);
         return ERR_ARCH;
     }
-    else if(version != VER_1){ // PENDIENTE: aceptar VER_2 cuando este la carga v2
-            fclose(arch);
-            return ERR_VER;
-         }
 
-    //LEO EL RESTO DEL HEADER (v1)
-    result = leerHeaderV1(arch, MV->tam_ram, &tam);
+    switch (version) {
+        case VER_1:
+            result = leerHeaderV1(arch, MV->tam_ram, &tam);
+            break;
+        case VER_2:
+            result = leerHeaderV2(arch, &tam);
+            if (result == OK)
+                result = ERR_VER;   // PROVISORIO: el armado de abajo todavia es solo v1 (se saca con armarProceso)
+            break;
+        default:
+            result = ERR_VER;
+            break;
+    }
     if (result != OK){
         fclose(arch);
         return result;
