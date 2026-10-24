@@ -251,6 +251,36 @@ static int armarProceso(TMV *MV, TTamanios *tam, FILE *arch) {
     return result;
 }
 
+// Escribe un valor de 4 bytes en big endian a partir de la posición física pos
+static void escribir32(TMV *MV, unsigned int pos, unsigned int valor) {
+    int j;
+    for (j = 0; j < 4; j++)
+        MV->RAM[pos + j] = (valor >> (8 * (3 - j))) & 0xFF;
+}
+
+// Escribe el Param Segment (siempre empieza en la dirección física 0):
+// primero los strings (nombre del .vmx y cada parámetro) y al final el arreglo argv,
+// con un puntero (segmento 0, offset del string) por cada uno.
+static void escribirParam(TMV *MV, TArgumentos *args, unsigned int tamPS) {
+    int argc = args->cantParam + 1;
+    unsigned int inicioArgv = tamPS - 4 * argc;
+    unsigned int offset = 0;          // dónde va el próximo string
+    char *str;
+    int k;
+
+    for (k = 0; k < argc; k++) {
+        // el string k: el nombre del .vmx primero, después los parámetros
+        if (k == 0)
+            str = args->nomVMX;
+        else
+            str = args->params[k - 1];
+
+        strcpy((char *)(MV->RAM + offset), str);
+        escribir32(MV, inicioArgv + 4 * k, armarPunteroLogico(0, offset));   // argv[k] -> (PS, offset)
+        offset += strlen(str) + 1;                                           // el próximo string va después del '\0'
+    }
+}
+
 int inicializoMV(TMV *MV, TArgumentos *args){
     FILE *arch;
     size_t num; //verificador de que los reads den bien
@@ -306,6 +336,9 @@ int inicializoMV(TMV *MV, TArgumentos *args){
         fclose(arch);
         return result;
     }
+
+    if (args->cantParam > 0 && version == VER_2)
+        escribirParam(MV, args, tam.tam[TS_PARAM]);
 
     MV->error=0;
     fclose(arch);
