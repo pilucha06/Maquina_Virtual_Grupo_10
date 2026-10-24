@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include "IniciarMV.h"
+#include "Ejecucion.h"   // direc_fisica
 
 typedef enum {TS_PARAM = 0, TS_CONST, TS_CODE, TS_DATA, TS_EXTRA, TS_STACK, CANT_SEG_PROC } TipoSegmento;
 
@@ -281,6 +282,45 @@ static void escribirParam(TMV *MV, TArgumentos *args, unsigned int tamPS) {
     }
 }
 
+// "Push" de carga: baja el SP 4 bytes y escribe el valor en el nuevo tope.
+// Devuelve OK, o ERR_MEM_INSUF si la pila no tiene lugar.
+static int pushInicial(TMV *MV, unsigned int valor) {
+    int fisica;
+    int result = OK;
+
+    MV->registros[REG_SP] -= 4;
+    fisica = direc_fisica(MV->registros[REG_SP], MV, 4);
+    if (fisica == -1)
+        result = ERR_MEM_INSUF;          // la pila es demasiado chica
+    else
+        escribir32(MV, fisica, valor);
+    return result;
+}
+
+// Deja la pila como pide el PDF: (tope) RET = -1, argc, puntero a argv.
+// Se apilan al revés: primero argv, después argc y último la dirección de retorno.
+static int cargarPilaInicial(TMV *MV, TArgumentos *args, unsigned int tamPS) {
+    unsigned int ptrArgv;
+    unsigned int argc;
+    int result;
+
+    if (args->cantParam > 0) {
+        argc = args->cantParam + 1;
+        ptrArgv = armarPunteroLogico(0, tamPS - 4 * argc);   // argv está al final del Param Segment
+    }
+    else {
+        argc = 0;
+        ptrArgv = -1;      // sin parámetros: argc = 0 y argv = -1 (pág. 6 del PDF)
+    }
+
+    result = pushInicial(MV, ptrArgv);
+    if (result == OK)
+        result = pushInicial(MV, argc);
+    if (result == OK)
+        result = pushInicial(MV, 0xFFFFFFFF);   // dirección de retorno = -1
+    return result;
+}
+
 int inicializoMV(TMV *MV, TArgumentos *args){
     FILE *arch;
     size_t num; //verificador de que los reads den bien
@@ -337,8 +377,16 @@ int inicializoMV(TMV *MV, TArgumentos *args){
         return result;
     }
 
-    if (args->cantParam > 0 && version == VER_2)
-        escribirParam(MV, args, tam.tam[TS_PARAM]);
+    //PARAM SEGMENT Y PILA INICIAL (solo v2)
+    if (version == VER_2) {
+        if (args->cantParam > 0)
+            escribirParam(MV, args, tam.tam[TS_PARAM]);
+        result = cargarPilaInicial(MV, args, tam.tam[TS_PARAM]);
+        if (result != OK){
+            fclose(arch);
+            return result;
+        }
+    }
 
     MV->error=0;
     fclose(arch);
