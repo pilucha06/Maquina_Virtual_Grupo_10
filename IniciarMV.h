@@ -8,13 +8,13 @@ typedef struct {
     char *nomVMI;          // NULL si no vino
     unsigned int tamMemKiB;
     int mostrarDis;        // 1 si vino -d
-    int posParam;          // índice en argv del primer parámetro de -p
+    char **params;         // params[0..cantParam-1] = parámetros que vinieron después de -p
     int cantParam;         // cuántos parámetros hay después de -p
 } TArgumentos;
 
 int reservoEspacioMV(TMV *MV, unsigned int tamRam);
 int leerArgumentos(int argc, char *argv[], TArgumentos *args);
-int inicializoMV(TMV *MV, char nomArch[]);
+int inicializoMV(TMV *MV, TArgumentos *args);
 void liberarMV(TMV *MV);
 
 #endif

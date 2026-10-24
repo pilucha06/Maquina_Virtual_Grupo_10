@@ -66,7 +66,7 @@ int leerArgumentos(int argc, char *argv[], TArgumentos *args) {
     args->nomVMI = NULL;
     args->tamMemKiB = TAM_RAM_DEFAULT / 1024;   // 16 KiB
     args->mostrarDis = 0;
-    args->posParam = 0;
+    args->params = NULL;
     args->cantParam = 0;
 
     while (i < argc && !finFlags && result == OK) {
@@ -90,7 +90,7 @@ int leerArgumentos(int argc, char *argv[], TArgumentos *args) {
 
         else if (strcmp(argv[i], "-p") == 0) {
             finFlags = 1;
-            args->posParam = i + 1;            // el primer parámetro está justo después de -p
+            args->params = &argv[i + 1];       // apunta al primer parámetro después de -p
             args->cantParam = argc - (i + 1);  // todo lo que queda hasta el final
         }
         // cualquier otro argumento se ignora
@@ -177,6 +177,24 @@ static int leerHeaderV2(FILE *arch, TTamanios *tam) {
     return result;
 }
 
+// Tamaño del Param Segment: los strings (nombre del .vmx + cada parámetro, con su '\0')
+// más el arreglo argv (un puntero de 4 bytes por string). 0 si no hay parámetros.
+static unsigned int calcularTamParam(TArgumentos *args) {
+    unsigned int tamanio = 0;
+    int k;
+
+    if (args->cantParam > 0) {
+        // strings
+        tamanio = strlen(args->nomVMX) + 1;               // "prog.vmx\0"
+        for (k = 0; k < args->cantParam; k++)
+            tamanio += strlen(args->params[k]) + 1;      // "prueba\0", "01\0", "2\0"
+
+        // arreglo argv: un puntero de 4 bytes por cada string (argc = cantParam + 1)
+        tamanio += 4 * (args->cantParam + 1);
+    }
+    return tamanio;
+}
+
 // Arma el proceso en memoria a partir de los tamaños del header:
 // tabla de segmentos (contigua, sin huecos), registros de segmento, IP y SP,
 // y carga el código y las constantes desde el archivo.
@@ -233,7 +251,7 @@ static int armarProceso(TMV *MV, TTamanios *tam, FILE *arch) {
     return result;
 }
 
-int inicializoMV(TMV *MV, char nomArch[]){
+int inicializoMV(TMV *MV, TArgumentos *args){
     FILE *arch;
     size_t num; //verificador de que los reads den bien
     int result;
@@ -241,7 +259,7 @@ int inicializoMV(TMV *MV, char nomArch[]){
     unsigned char version;
     TTamanios tam;
 
-    arch = fopen(nomArch, "rb");
+    arch = fopen(args->nomVMX, "rb");
     if (arch == NULL)
         return ERR_ARCH;
 
@@ -270,6 +288,8 @@ int inicializoMV(TMV *MV, char nomArch[]){
             break;
         case VER_2:
             result = leerHeaderV2(arch, &tam);
+            if (result == OK)
+                tam.tam[TS_PARAM] = calcularTamParam(args);   // solo la v2 tiene Param Segment
             break;
         default:
             result = ERR_VER;

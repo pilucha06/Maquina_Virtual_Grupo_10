@@ -58,7 +58,7 @@ int main(int argc, char *argv[]){
             if (!reservoEspacioMV(&MV, args.tamMemKiB * 1024)) //el usuario dio KiB, y reservoEspacioMV pide bytes
                 result = ERR_MEM;
             else {
-                result = inicializoMV(&MV, args.nomVMX);
+                result = inicializoMV(&MV, &args);
                 if (result == OK)
                     MV.nombreVMI = args.nomVMI;   // NULL si no vino .vmi -> breakpoints ignorados
             }
