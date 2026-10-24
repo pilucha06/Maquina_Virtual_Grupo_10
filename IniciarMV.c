@@ -3,10 +3,6 @@
 #include <stdio.h>
 #include "IniciarMV.h"
 
-// En la v1 la tabla es fija: codigo en la entrada 0 y datos en la 1
-#define V1_IDX_COD 0
-#define V1_IDX_DAT 1
-
 typedef enum {TS_PARAM = 0, TS_CONST, TS_CODE, TS_DATA, TS_EXTRA, TS_STACK, CANT_SEG_PROC } TipoSegmento;
 
 typedef struct {
@@ -19,6 +15,9 @@ typedef struct {
 // se guarda en tam->tam[ordenHeaderV2[i]].
 static const TipoSegmento ordenHeaderV2[] = { TS_CODE, TS_DATA, TS_EXTRA, TS_STACK, TS_CONST };
 #define CANT_TAM_HEADER_V2 5
+
+// Registro de segmento que corresponde a cada TipoSegmento (mismo orden que el enum)
+static const CodigoRegistro regDeSegmento[CANT_SEG_PROC] = { REG_PS, REG_KS, REG_CS, REG_DS, REG_ES, REG_SS };
 
 int reservoEspacioMV(TMV *MV, unsigned int tamRam){
     MV->tam_ram = tamRam;
@@ -178,11 +177,66 @@ static int leerHeaderV2(FILE *arch, TTamanios *tam) {
     return result;
 }
 
+// Arma el proceso en memoria a partir de los tamaños del header:
+// tabla de segmentos (contigua, sin huecos), registros de segmento, IP y SP,
+// y carga el código y las constantes desde el archivo.
+static int armarProceso(TMV *MV, TTamanios *tam, FILE *arch) {
+    unsigned int total = 0;               // suma de todos los tamaños
+    unsigned int base = 0;                // dónde empieza el próximo segmento en la RAM
+    unsigned int baseSeg[CANT_SEG_PROC];  // base física de cada segmento (para cargar código y constantes)
+    int i, idx = 0;                       // idx = próxima entrada libre de la tabla
+    int result = OK;
+    size_t leidos;
+
+    // 1. ¿Entra el proceso?
+    for (i = 0; i < CANT_SEG_PROC; i++)
+        total += tam->tam[i];
+    if (total > MV->tam_ram)
+        result = ERR_MEM_INSUF;
+
+    if (result == OK) {
+        // 2. Tabla y registros de segmento, en orden Param -> Stack
+        for (i = 0; i < CANT_SEG_PROC; i++) {
+            baseSeg[i] = base;
+            if (tam->tam[i] > 0) {
+                MV->tablaSegmentos[idx] = armarEntrada(base, tam->tam[i]);
+                MV->registros[regDeSegmento[i]] = armarPunteroLogico(idx, 0);
+                base += tam->tam[i];    // el próximo segmento empieza donde termina este
+                idx++;                  // y va en la siguiente entrada de la tabla
+            }
+            else
+                MV->registros[regDeSegmento[i]] = -1;
+        }
+        for (i = idx; i < CANT_SEGS; i++)        // las entradas que sobran quedan libres
+            MV->tablaSegmentos[i] = ENTRADA_LIBRE;
+
+        // 3. IP y SP
+        // IP: segmento del CS (parte alta) + offset del entry point (parte baja)
+        MV->registros[REG_IP] = (MV->registros[REG_CS] & 0xFFFF0000) | tam->entryPoint;
+        // SP: pila vacía = apunta justo después del final del Stack Segment
+        if (MV->registros[REG_SS] == -1)
+            MV->registros[REG_SP] = -1;            // sin pila (v1)
+        else
+            MV->registros[REG_SP] = (MV->registros[REG_SS] & 0xFFFF0000) | tam->tam[TS_STACK];
+
+        // 4. Cargar código y constantes (en el archivo vienen en ese orden)
+        leidos = fread(MV->RAM + baseSeg[TS_CODE], sizeof(unsigned char), tam->tam[TS_CODE], arch);
+        if (leidos < tam->tam[TS_CODE])
+            result = ERR_ARCH;
+        else {
+            leidos = fread(MV->RAM + baseSeg[TS_CONST], sizeof(unsigned char), tam->tam[TS_CONST], arch);
+            if (leidos < tam->tam[TS_CONST])
+                result = ERR_ARCH;
+        }
+    }
+
+    return result;
+}
+
 int inicializoMV(TMV *MV, char nomArch[]){
     FILE *arch;
     size_t num; //verificador de que los reads den bien
-    int i, baseCod = 0, result;
-    unsigned short tamCod;
+    int result;
     char id[TAM_ID + 1];
     unsigned char version;
     TTamanios tam;
@@ -202,7 +256,7 @@ int inicializoMV(TMV *MV, char nomArch[]){
             fclose(arch);
             return ERR_ID;
          }
-         
+
     //LEO VERSION Y EL RESTO DEL HEADER (segun la version)
     num = fread(&version, sizeof(char), 1, arch);
     if (num < 1){
@@ -216,8 +270,6 @@ int inicializoMV(TMV *MV, char nomArch[]){
             break;
         case VER_2:
             result = leerHeaderV2(arch, &tam);
-            if (result == OK)
-                result = ERR_VER;   // PROVISORIO: el armado de abajo todavia es solo v1 (se saca con armarProceso)
             break;
         default:
             result = ERR_VER;
@@ -227,28 +279,14 @@ int inicializoMV(TMV *MV, char nomArch[]){
         fclose(arch);
         return result;
     }
-    tamCod = tam.tam[TS_CODE];   // PROVISORIO: hasta que el armado use todo TTamanios
-
-    //TABLA DE SEGMENTOS
-    MV->tablaSegmentos[V1_IDX_COD] = armarEntrada(baseCod, tamCod);
-    MV->tablaSegmentos[V1_IDX_DAT] = armarEntrada(baseCod + tamCod, MV->tam_ram - tamCod);
-    for (i = 2; i < CANT_SEGS; i++)
-        MV->tablaSegmentos[i] = ENTRADA_LIBRE;
-
-    //REGISTROS
-    MV->registros[REG_CS] = armarPunteroLogico(V1_IDX_COD, 0);
-    MV->registros[REG_DS] = armarPunteroLogico(V1_IDX_DAT, 0);
-    MV->registros[REG_ES] = -1;   // segmentos que no existen en la v1
-    MV->registros[REG_SS] = -1;
-    MV->registros[REG_KS] = -1;
-    MV->registros[REG_PS] = -1;
-    MV->registros[REG_IP] = MV->registros[REG_CS];
-
-    num = fread(MV->RAM + baseCod, sizeof(char), tamCod, arch);
-    if (num < tamCod){
+    
+    //ARMO EL PROCESO (tabla, registros, IP, SP) Y CARGO CODIGO Y CONSTANTES
+    result = armarProceso(MV, &tam, arch);
+    if (result != OK){
         fclose(arch);
-        return ERR_ARCH;
+        return result;
     }
+
     MV->error=0;
     fclose(arch);
     return OK;

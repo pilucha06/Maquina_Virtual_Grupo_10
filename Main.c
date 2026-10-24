@@ -33,6 +33,9 @@ void mostrarResult(int result){
         case ERR_HEADER:
             printf("ERROR: Header espantoso, boludas! ERROR DE HEADERRRR\n");
             break;
+        case ERR_MEM_INSUF:
+            printf("ERROR: Memoria insuficiente: el proceso no entra en la memoria\n");
+            break;
         default:
             printf("ERROR: Codigo de resultado desconocido (%d)\n", result);
     }

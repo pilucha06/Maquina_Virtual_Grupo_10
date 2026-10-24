@@ -18,6 +18,7 @@
 #define ERR_ARG_M    6
 #define ERR_SIN_ARCH 7
 #define ERR_HEADER 8   // el header se leyó bien, pero su contenido es inválido
+#define ERR_MEM_INSUF 9   // el proceso no entra en la memoria
 #define MAX_MEM_KIB  64   // con bases de 16 bits no se puede direccionar más allá de 64 KiB (consultar a la cátedra)
 
 typedef enum {
