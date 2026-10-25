@@ -46,6 +46,7 @@ typedef struct {
     int           *registros;       // vector de 32 registros de 4 bytes
     unsigned int  *tablaSegmentos;  // 8 entradas: 2 bytes base + 2 bytes tamaño
     short int     error;
+    int         version;
     char       *nombreVMI;    // nombre del .vmi, NULL si no vino por parametro
     EstadoDebug estadoDebug;  // NORMAL / PASO / SALIR            
 } TMV;

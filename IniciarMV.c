@@ -24,6 +24,7 @@ int reservoEspacioMV(TMV *MV, unsigned int tamRam){
     MV->tam_ram = tamRam;
     MV->nombreVMI = NULL;
     MV->error = 0;
+    MV->version = VER_2;
     MV->estadoDebug = DBG_NORMAL;
     MV->RAM = calloc(tamRam, sizeof(unsigned char)); //reserva tamRam bytes en el heap, todos en 0
     if(MV->RAM == NULL)
@@ -388,6 +389,7 @@ int inicializoMV(TMV *MV, TArgumentos *args){
         }
     }
 
+    MV->version = version;
     MV->error=0;
     fclose(arch);
     return OK;

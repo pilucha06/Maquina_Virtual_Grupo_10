@@ -16,5 +16,6 @@ void formatear_operando(int operando, char *buffer);
 void mostrar_desensamblado(int fisica_ip, TMV *MV, int opc, int op1, int op2, int tamanio_total,int es_entry_point);
 void ejecutar(TMV *MV);
 void desensamblar(TMV *MV);
+int  normalizar_operando(TMV *MV, int operando);
 
 #endif
