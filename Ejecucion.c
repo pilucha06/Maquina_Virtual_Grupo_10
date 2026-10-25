@@ -333,9 +333,7 @@ void ejecutar(TMV *MV) {
                 default:
                     MV->registros[REG_OP1] = MV->registros[REG_OP2] = 0;
             }
-            
-            MV->registros[REG_OP1] = normalizar_operando(MV, MV->registros[REG_OP1]);
-            MV->registros[REG_OP2] = normalizar_operando(MV, MV->registros[REG_OP2]);
+
 
             // Paso 5: valido que el opcode exista
             if (vecInstr[MV->registros[REG_OPC]] == NULL)
@@ -346,7 +344,10 @@ void ejecutar(TMV *MV) {
                 MV->registros[REG_IP] = (MV->registros[REG_IP] & ~MASCARA_16_BITS) | (offset_actual & MASCARA_16_BITS);
 
                 // Paso 7: ejecuto la instruccion
-                vecInstr[MV->registros[REG_OPC]](MV, MV->registros[REG_OP1], MV->registros[REG_OP2]);
+                // OP1 y OP2 quedan "tal cual" en los registros (lo pide el PDF); la instruccion
+                // recibe una copia normalizada (en la v1 se limpian los bits reservados)
+                vecInstr[MV->registros[REG_OPC]](MV, normalizar_operando(MV, MV->registros[REG_OP1]),
+                                                     normalizar_operando(MV, MV->registros[REG_OP2]));
                 if (MV->estadoDebug == DBG_PASO && MV->error == 0 && !(MV->registros[REG_OPC] == 0 && (MV->registros[REG_OP1] & 0xFFFF) == 0xF)) {
                     breakpoint(MV); 
                 }

@@ -18,6 +18,14 @@
  
 
 //------READ------
+// descarta lo que quedo en el buffer del teclado hasta el fin de linea (incluido el '\n'),
+// para que la proxima lectura (SYS 1, SYS 3 o el breakpoint) empiece en una linea nueva
+static void descartarLinea(void){
+    int c = getchar();
+    while (c != '\n' && c != EOF)
+        c = getchar();
+}
+
 static int leerValor(int formato, TMV *mv){
     int valor = 0;
     unsigned int aux;          // para hexa y octal
@@ -59,6 +67,7 @@ static int leerValor(int formato, TMV *mv){
             valor = acum;
             break;
     }
+    descartarLinea();   // scanf deja el '\n' (y lo que sobre de la linea) en el buffer
     return valor;
 }
  
@@ -211,6 +220,9 @@ void sysReadString(TMV *mv) {
     //caracter nulo \0 al final
     if (mv->error == 0)
         escribirMemoria(mv, dirDestino + i, 1, 0);
+    // si se corto por el limite, el resto de la linea no se usa: se descarta
+    if (c != '\n' && c != EOF)
+        descartarLinea();
 }
 
 void sysWriteString(TMV *mv) {
