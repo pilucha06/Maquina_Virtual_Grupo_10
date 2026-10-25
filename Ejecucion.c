@@ -6,10 +6,11 @@ después de inicializar todas las estructuras*/
 #include <stdio.h>
 #include "Ejecucion.h"
 #include "Instrucciones.h"
+#include "Imagen.h"
+#include "Operandos.h"
 
 // Máscaras y corrimientos propios de la codificación de instrucciones/operandos
 // (no están en MV.h porque son de formato, no de la estructura de la máquina)
-#define MASCARA_16_BITS         0xFFFF
 #define BITS_SEGMENTO           16
 #define BITS_TIPO_OPERANDO      24
 #define MASCARA_VALOR_OPERANDO  0x00FFFFFF
@@ -17,30 +18,29 @@ después de inicializar todas las estructuras*/
 #define MASCARA_OPCODE          0x1F
 #define OPCODE_STOP             0x0F
 #define TAM_BUFFER_TEXTO        32
-#define BIT_SIGNO_16            0x8000  // bit más alto de un valor de 16 bits (indica negativo)
-#define COMPLEMENTO_16          0x10000 // para restaurar el signo real de un valor de 16 bits
 
 const char *nombres_registros[CANT_REGS] = {
     [REG_IP]  = "IP",  [REG_OPC] = "OPC", [REG_OP1] = "OP1", [REG_OP2] = "OP2",
-    [REG_LAR] = "LAR", [REG_MAR] = "MAR", [REG_MBR] = "MBR",
+    [REG_LAR] = "LAR", [REG_MAR] = "MAR", [REG_MBR] = "MBR", [REG_SP]  = "SP",[REG_BP]  = "BP",
     [REG_EAX] = "EAX", [REG_EBX] = "EBX", [REG_ECX] = "ECX", [REG_EDX] = "EDX",
     [REG_EEX] = "EEX", [REG_EFX] = "EFX",
     [REG_AC]  = "AC",  [REG_CC]  = "CC",
-    [REG_CS]  = "CS",  [REG_DS]  = "DS"
-    // el resto (7,8,9,18-25,28-31) quedan en NULL: reservados/no usados
+    [REG_CS]  = "CS",  [REG_DS]  = "DS", [REG_ES]  = "ES",  [REG_SS]  = "SS",
+    [REG_KS]  = "KS",  [REG_PS]  = "PS",
+    // El resto (9, 18-25) queda en NULL: reservados/no usados.
 };
 
 const char *nombres_mnemonicos[CANT_REGS] = {
     [0x00] = "SYS",  [0x01] = "JMP", [0x02] = "JP",  [0x03] = "JN",
     [0x04] = "JZ",   [0x05] = "JC",  [0x06] = "JV",  [0x07] = "JNP",
-    [0x08] = "JNN",  [0x09] = "JNZ", [0x0A] = "NOT", [OPCODE_STOP] = "STOP",
+    [0x08] = "JNN",  [0x09] = "JNZ", [0x0A] = "NOT",[0x0B] = "PUSH", 
+    [0x0C] = "POP", [0x0D] = "CALL", [0x0E] = "RET",[OPCODE_STOP] = "STOP",
     [0x10] = "MOV",  [0x11] = "ADD", [0x12] = "SUB", [0x13] = "MUL",
     [0x14] = "DIV",  [0x15] = "CMP", [0x16] = "AND", [0x17] = "OR",
     [0x18] = "XOR",  [0x19] = "SWAP",[0x1A] = "SHL", [0x1B] = "SHR",
     [0x1C] = "SAR",  [0x1D] = "LDL", [0x1E] = "LDH", [0x1F] = "RND"
     // el resto queda en NULL: opcode inválido
 };
-
 /* direc_fisica: a partir de una dirección lógica y una cantidad de bytes a leer,
    valida que la posición inicial sea correcta y que se puedan leer esos bytes
    sin salirse del segmento. Si es válida, devuelve la posición física inicial. */
@@ -53,13 +53,14 @@ int direc_fisica(int direc_logica, TMV *MV, int cant_bytes) {
 
     int base        = (MV->tablaSegmentos[seg] >> BITS_SEGMENTO) & MASCARA_16_BITS;
     int tamanio_seg = MV->tablaSegmentos[seg] & MASCARA_16_BITS;
+    if (cant_bytes < 0 ||offset_raw > tamanio_seg ||cant_bytes > tamanio_seg - offset_raw)
+        return -1;
+    int fisica = base + offset_raw;
+    if (fisica > (int)MV->tam_ram || cant_bytes > (int)MV->tam_ram - fisica)
+        return -1;
 
-    if (offset_raw + cant_bytes > tamanio_seg)
-        return -1; // se cae del segmento (por arriba)
-
-    return base + offset_raw;
+    return fisica;
 }
-
 /* calcula_cant_op: a partir del primer byte de la instrucción, decide si es de
    0, 1 o 2 operandos, y carga los tipos correspondientes por puntero. */
 void calcula_cant_op(int instruccion, int *tipo_A, int *tipo_B, int *cant_op) {
@@ -68,7 +69,7 @@ void calcula_cant_op(int instruccion, int *tipo_A, int *tipo_B, int *cant_op) {
         *cant_op = 2;
         *tipo_A = (instruccion >> 4) & 0x03;
         *tipo_B = (instruccion >> 6) & 0x03;
-    } else if ((instruccion & MASCARA_OPCODE) != OPCODE_STOP) {
+    } else if ((instruccion & MASCARA_OPCODE) != OPCODE_STOP && (instruccion & MASCARA_OPCODE) != 0x0E) {
         // un operando
         *cant_op = 1;
         *tipo_A = (instruccion >> 6) & 0x03;
@@ -91,13 +92,15 @@ int get_RAM(int tipo_op, int fisica_ip, TMV *MV) {
     return valor;
 }
 
-/* extender_signo_16: interpreta un valor de 16 bits (offset o inmediato) como
-   número con signo (complemento a 2).
-   Sin esto, cualquier valor negativo se leería como un número positivo grande. */
-int extender_signo_16(int valor16) {
-    if (valor16 & BIT_SIGNO_16)
-        return valor16 - COMPLEMENTO_16;
-    return valor16;
+/* normalizar_operando: en la v1, los 3 bits altos del byte del registro (en operandos de
+   registro y de memoria) son reservados y pueden traer cualquier valor. En la v2 esos bits
+   son el sector (AL/AH/AX) o el tamaño (b/w/l). Para que el resto del código pueda tratar
+   todo como v2, en un programa v1 se ponen en 000 (= registro completo / 4 bytes). */
+int normalizar_operando(TMV *MV, int operando) {
+    int tipo = (operando >> BITS_TIPO_OPERANDO) & MASCARA_BYTE;
+    if (MV->version == VER_1 && (tipo == 1 || tipo == 3))
+        operando &= ~0xE0;          // limpia los bits 7, 6 y 5 del byte del registro
+    return operando;
 }
 
 void imprimir_instruccion_hex(TMV *MV, int fisica_inicio, int tamanio_total) {
@@ -105,41 +108,147 @@ void imprimir_instruccion_hex(TMV *MV, int fisica_inicio, int tamanio_total) {
         printf("%02X ", MV->RAM[fisica_inicio + i]);
     }
 }
+
 void formatear_operando(int operando, char *buffer) {
     int tipo  = (operando >> BITS_TIPO_OPERANDO) & MASCARA_BYTE;
     int valor = operando & MASCARA_VALOR_OPERANDO;
 
     switch (tipo) {
-        case 0: // no existe
+        case 0: // Sin operando
             buffer[0] = '\0';
             break;
-        case 1: // registro
-            snprintf(buffer, TAM_BUFFER_TEXTO, "%s", nombres_registros[valor & MASCARA_OPCODE]);
+
+        case 1: { // Registro
+            int codigo_reg = valor & MASCARA_OPCODE;
+            int sector = (valor >> 5) & 0x03;
+            const char *nombre = nombres_registros[codigo_reg];
+
+            // Solo EAX, EBX, ECX, EDX, EEX y EFX tienen sectores
+            if (codigo_reg >= REG_EAX && codigo_reg <= REG_EFX) {
+                char letra = nombre[1];
+
+                switch (sector) {
+                    case 1:
+                        snprintf(buffer, TAM_BUFFER_TEXTO, "%cL", letra);
+                        break;
+                    case 2:
+                        snprintf(buffer, TAM_BUFFER_TEXTO, "%cH", letra);
+                        break;
+                    case 3:
+                        snprintf(buffer, TAM_BUFFER_TEXTO, "%cX", letra);
+                        break;
+                    default:
+                        snprintf(buffer, TAM_BUFFER_TEXTO, "%s", nombre);
+                        break;
+                }
+            } else {
+                // Los demás registros no tienen pseudónimos de sector
+                snprintf(buffer, TAM_BUFFER_TEXTO, "%s", nombre);
+            }
             break;
-        case 2: { // inmediato (con signo)
-            int inmediato = extender_signo_16(valor & MASCARA_16_BITS);
+        }
+
+        case 2: { // Inmediato con signo
+            int inmediato = extenderSigno(valor & MASCARA_16_BITS, 2);
             snprintf(buffer, TAM_BUFFER_TEXTO, "%d", inmediato);
             break;
         }
-        case 3: { // memoria: [REG+offset] o [REG-offset]
+
+        case 3: { // Memoria
             int codigo_reg = valor & MASCARA_OPCODE;
-            int offset     = extender_signo_16((valor >> 8) & MASCARA_16_BITS);
-            if (offset >= 0)
-                snprintf(buffer, TAM_BUFFER_TEXTO, "[%s+%d]", nombres_registros[codigo_reg], offset);
-            else
-                snprintf(buffer, TAM_BUFFER_TEXTO, "[%s%d]", nombres_registros[codigo_reg], offset);
+            int modificador = (valor >> 5) & 0x07;
+            int offset = extenderSigno((valor >> 8) & MASCARA_16_BITS, 2);
+
+            const char *nombre = nombres_registros[codigo_reg];
+            char prefijo = '\0';
+
+            switch (modificador) {
+                case 1:
+                    prefijo = 'b';
+                    break;
+                case 2:
+                    prefijo = 'w';
+                    break;
+                case 4:
+                    prefijo = 'l';
+                    break;
+                default:
+                    // Modificador 0: formato de la MV1, sin prefijo
+                    break;
+            }
+
+            if (offset >= 0) {
+                if (prefijo != '\0')
+                    snprintf(buffer, TAM_BUFFER_TEXTO,
+                             "%c[%s+%d]", prefijo, nombre, offset);
+                else
+                    snprintf(buffer, TAM_BUFFER_TEXTO,
+                             "[%s+%d]", nombre, offset);
+            } else {
+                if (prefijo != '\0')
+                    snprintf(buffer, TAM_BUFFER_TEXTO,
+                             "%c[%s%d]", prefijo, nombre, offset);
+                else
+                    snprintf(buffer, TAM_BUFFER_TEXTO,
+                             "[%s%d]", nombre, offset);
+            }
             break;
         }
     }
 }
 /*FUNCIONES DESENSAMBLADO*/
 
-void mostrar_desensamblado(int fisica_ip, TMV *MV, int opc, int op1, int op2, int tamanio_total) {
+/* imprime una constante string: [direccion fisica] bytes en hexa | "texto"
+   largo incluye el '\0' final. Si hay mas de 7 bytes, muestra 6 y ".." */
+void imprimir_constante(TMV *MV, int fisica, int largo) {
+    int i, bytes_a_mostrar, caracter;
+
+    bytes_a_mostrar = (largo > 7) ? 6 : largo;
+
+    printf(" [%04X] ", fisica);
+    for (i = 0; i < bytes_a_mostrar; i++)
+        printf("%02X ", MV->RAM[fisica + i]);
+    if (largo > 7)
+        printf(".. ");
+
+    printf("| \"");
+    for (i = 0; i < largo - 1; i++) {          // sin el '\0' final
+        caracter = MV->RAM[fisica + i];
+        if (caracter >= 32 && caracter <= 126)
+            printf("%c", caracter);
+        else
+            printf(".");
+    }
+    printf("\"\n");
+}
+
+/* recorre el Const Segment y muestra cada string. Si no hay (KS = -1), no imprime nada */
+void mostrar_constantes(TMV *MV) {
+    int ks = MV->registros[REG_KS];
+    unsigned int entrada;
+    int base, tamanio, pos, inicio;
+
+    if (ks != -1) {
+        entrada = MV->tablaSegmentos[(ks >> BITS_SEGMENTO) & MASCARA_16_BITS];
+        base    = (entrada >> BITS_SEGMENTO) & MASCARA_16_BITS;
+        tamanio = entrada & MASCARA_16_BITS;
+        pos = 0;
+        while (pos < tamanio) {
+            inicio = pos;
+            while (pos < tamanio && MV->RAM[base + pos] != 0)
+                pos++;
+            if (pos < tamanio)
+                pos++;                          // incluye el '\0'
+            imprimir_constante(MV, base + inicio, pos - inicio);
+        }
+    }
+}
+
+void mostrar_desensamblado(int fisica_ip, TMV *MV, int opc, int op1, int op2, int tamanio_total, int es_entry_point){
     char op_A_str[TAM_BUFFER_TEXTO], op_B_str[TAM_BUFFER_TEXTO];
     formatear_operando(op1, op_A_str);
     formatear_operando(op2, op_B_str);
-
-    printf("[%04X] ", fisica_ip);
+    printf("%c[%04X] ", es_entry_point ? '>' : ' ', fisica_ip);
     imprimir_instruccion_hex(MV, fisica_ip, tamanio_total);
     printf("| %s", nombres_mnemonicos[opc]);
 
@@ -157,7 +266,8 @@ void desensamblar(TMV *MV) {
     int fisica = direc_fisica(inicioCS | offsetAux, MV, 1);
     int instruccion, cant_op, tipo_A, tipo_B, tamanio_op;
     int opc, inicio_lec, op1, op2;
-
+    int entry_point = direc_fisica(MV->registros[REG_IP], MV, 1);
+    mostrar_constantes(MV);
     while (fisica != -1) {
         instruccion = MV->RAM[fisica];
         calcula_cant_op(instruccion, &tipo_A, &tipo_B, &cant_op);
@@ -180,8 +290,9 @@ void desensamblar(TMV *MV) {
                     op1 = (tipo_A << BITS_TIPO_OPERANDO) | get_RAM(tipo_A, inicio_lec + tipo_B, MV);
                     break;
             }
-
-            mostrar_desensamblado(fisica, MV, opc, op1, op2, tamanio_op);
+            op1 = normalizar_operando(MV, op1);
+            op2 = normalizar_operando(MV, op2);
+            mostrar_desensamblado(fisica, MV, opc, op1, op2,tamanio_op,entry_point != -1 && fisica == entry_point);
 
             offsetAux += tamanio_op;
             fisica = direc_fisica(inicioCS | offsetAux, MV, 1);
@@ -195,7 +306,7 @@ void ejecutar(TMV *MV) {
 
     // Paso 1: la ejecucion sigue mientras IP apunte dentro del segmento de codigo
     fisica_ip = direc_fisica(MV->registros[REG_IP], MV, 1);
-    while (fisica_ip != -1 && MV->error == 0) {
+    while (fisica_ip != -1 && MV->error == 0 && MV->estadoDebug != DBG_SALIR) {
 
         // Paso 2: distingo la operacion y los tipos de operandos
         instruccion = MV->RAM[fisica_ip];
@@ -223,6 +334,7 @@ void ejecutar(TMV *MV) {
                     MV->registros[REG_OP1] = MV->registros[REG_OP2] = 0;
             }
 
+
             // Paso 5: valido que el opcode exista
             if (vecInstr[MV->registros[REG_OPC]] == NULL)
                 MV->error = 1;
@@ -232,7 +344,13 @@ void ejecutar(TMV *MV) {
                 MV->registros[REG_IP] = (MV->registros[REG_IP] & ~MASCARA_16_BITS) | (offset_actual & MASCARA_16_BITS);
 
                 // Paso 7: ejecuto la instruccion
-                vecInstr[MV->registros[REG_OPC]](MV, MV->registros[REG_OP1], MV->registros[REG_OP2]);
+                // OP1 y OP2 quedan "tal cual" en los registros (lo pide el PDF); la instruccion
+                // recibe una copia normalizada (en la v1 se limpian los bits reservados)
+                vecInstr[MV->registros[REG_OPC]](MV, normalizar_operando(MV, MV->registros[REG_OP1]),
+                                                     normalizar_operando(MV, MV->registros[REG_OP2]));
+                if (MV->estadoDebug == DBG_PASO && MV->error == 0 && !(MV->registros[REG_OPC] == 0 && (MV->registros[REG_OP1] & 0xFFFF) == 0xF)) {
+                    breakpoint(MV); 
+                }
             }
         }
 
