@@ -73,6 +73,8 @@ int cargarImagen(TMV*MV,char nomArch[]){
         fclose(Arch);
         return ERR_ARCH;
     }
+     // el .vmi no guarda la version del programa: la v1 nunca tiene pila y la v2 siempre
+    MV->version = (MV->registros[REG_SS] == -1) ? VER_1 : VER_2;
     MV->error = 0;
     MV->estadoDebug = DBG_NORMAL;
     MV->nombreVMI = nomArch;

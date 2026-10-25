@@ -91,6 +91,18 @@ int get_RAM(int tipo_op, int fisica_ip, TMV *MV) {
     }
     return valor;
 }
+
+/* normalizar_operando: en la v1, los 3 bits altos del byte del registro (en operandos de
+   registro y de memoria) son reservados y pueden traer cualquier valor. En la v2 esos bits
+   son el sector (AL/AH/AX) o el tamaño (b/w/l). Para que el resto del código pueda tratar
+   todo como v2, en un programa v1 se ponen en 000 (= registro completo / 4 bytes). */
+int normalizar_operando(TMV *MV, int operando) {
+    int tipo = (operando >> BITS_TIPO_OPERANDO) & MASCARA_BYTE;
+    if (MV->version == VER_1 && (tipo == 1 || tipo == 3))
+        operando &= ~0xE0;          // limpia los bits 7, 6 y 5 del byte del registro
+    return operando;
+}
+
 void imprimir_instruccion_hex(TMV *MV, int fisica_inicio, int tamanio_total) {
     for (int i = 0; i < tamanio_total; i++) {
         printf("%02X ", MV->RAM[fisica_inicio + i]);
@@ -234,7 +246,8 @@ void desensamblar(TMV *MV) {
                     op1 = (tipo_A << BITS_TIPO_OPERANDO) | get_RAM(tipo_A, inicio_lec + tipo_B, MV);
                     break;
             }
-
+            op1 = normalizar_operando(MV, op1);
+            op2 = normalizar_operando(MV, op2);
             mostrar_desensamblado(fisica, MV, opc, op1, op2,tamanio_op,entry_point != -1 && fisica == entry_point);
 
             offsetAux += tamanio_op;
@@ -276,6 +289,9 @@ void ejecutar(TMV *MV) {
                 default:
                     MV->registros[REG_OP1] = MV->registros[REG_OP2] = 0;
             }
+            
+            MV->registros[REG_OP1] = normalizar_operando(MV, MV->registros[REG_OP1]);
+            MV->registros[REG_OP2] = normalizar_operando(MV, MV->registros[REG_OP2]);
 
             // Paso 5: valido que el opcode exista
             if (vecInstr[MV->registros[REG_OPC]] == NULL)
