@@ -186,7 +186,6 @@ void formatear_operando(int operando, char *buffer) {
         }
     }
 }
-
 /*FUNCIONES DESENSAMBLADO*/
 
 void mostrar_desensamblado(int fisica_ip, TMV *MV, int opc, int op1, int op2, int tamanio_total, int es_entry_point){
