@@ -56,7 +56,7 @@ int direc_fisica(int direc_logica, TMV *MV, int cant_bytes) {
     if (cant_bytes < 0 ||offset_raw > tamanio_seg ||cant_bytes > tamanio_seg - offset_raw)
         return -1;
     int fisica = base + offset_raw;
-    if (fisica > MV->tam_ram ||cant_bytes > MV->tam_ram - fisica)
+    if (fisica > (int)MV->tam_ram || cant_bytes > (int)MV->tam_ram - fisica)
         return -1;
 
     return fisica;
@@ -157,9 +157,7 @@ void formatear_operando(int operando, char *buffer) {
         case 3: { // Memoria
             int codigo_reg = valor & MASCARA_OPCODE;
             int modificador = (valor >> 5) & 0x07;
-            int offset = extenderSigno(
-                (valor >> 8) & MASCARA_16_BITS, 2
-            );
+            int offset = extenderSigno((valor >> 8) & MASCARA_16_BITS, 2);
 
             const char *nombre = nombres_registros[codigo_reg];
             char prefijo = '\0';
@@ -200,6 +198,52 @@ void formatear_operando(int operando, char *buffer) {
 }
 /*FUNCIONES DESENSAMBLADO*/
 
+/* imprime una constante string: [direccion fisica] bytes en hexa | "texto"
+   largo incluye el '\0' final. Si hay mas de 7 bytes, muestra 6 y ".." */
+void imprimir_constante(TMV *MV, int fisica, int largo) {
+    int i, bytes_a_mostrar, caracter;
+
+    bytes_a_mostrar = (largo > 7) ? 6 : largo;
+
+    printf(" [%04X] ", fisica);
+    for (i = 0; i < bytes_a_mostrar; i++)
+        printf("%02X ", MV->RAM[fisica + i]);
+    if (largo > 7)
+        printf(".. ");
+
+    printf("| \"");
+    for (i = 0; i < largo - 1; i++) {          // sin el '\0' final
+        caracter = MV->RAM[fisica + i];
+        if (caracter >= 32 && caracter <= 126)
+            printf("%c", caracter);
+        else
+            printf(".");
+    }
+    printf("\"\n");
+}
+
+/* recorre el Const Segment y muestra cada string. Si no hay (KS = -1), no imprime nada */
+void mostrar_constantes(TMV *MV) {
+    int ks = MV->registros[REG_KS];
+    unsigned int entrada;
+    int base, tamanio, pos, inicio;
+
+    if (ks != -1) {
+        entrada = MV->tablaSegmentos[(ks >> BITS_SEGMENTO) & MASCARA_16_BITS];
+        base    = (entrada >> BITS_SEGMENTO) & MASCARA_16_BITS;
+        tamanio = entrada & MASCARA_16_BITS;
+        pos = 0;
+        while (pos < tamanio) {
+            inicio = pos;
+            while (pos < tamanio && MV->RAM[base + pos] != 0)
+                pos++;
+            if (pos < tamanio)
+                pos++;                          // incluye el '\0'
+            imprimir_constante(MV, base + inicio, pos - inicio);
+        }
+    }
+}
+
 void mostrar_desensamblado(int fisica_ip, TMV *MV, int opc, int op1, int op2, int tamanio_total, int es_entry_point){
     char op_A_str[TAM_BUFFER_TEXTO], op_B_str[TAM_BUFFER_TEXTO];
     formatear_operando(op1, op_A_str);
@@ -223,7 +267,7 @@ void desensamblar(TMV *MV) {
     int instruccion, cant_op, tipo_A, tipo_B, tamanio_op;
     int opc, inicio_lec, op1, op2;
     int entry_point = direc_fisica(MV->registros[REG_IP], MV, 1);
-
+    mostrar_constantes(MV);
     while (fisica != -1) {
         instruccion = MV->RAM[fisica];
         calcula_cant_op(instruccion, &tipo_A, &tipo_B, &cant_op);
